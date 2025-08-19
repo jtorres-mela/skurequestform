@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gray-50">
+      <body className="min-h-screen">
         <header className="sticky top-0 z-20 bg-white border-b">
           <nav className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-6">
             <Link href="/" className="font-semibold">SKU Requests</Link>
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </nav>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-7xl px-1 py-6">{children}</main>
       </body>
     </html>
   );

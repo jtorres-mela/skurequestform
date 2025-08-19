@@ -209,7 +209,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl bg-white p-5 shadow-sm border">
+    <section className="rounded-2xl bg-white p-5 shadow-md">
       <header className="mb-4">
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
@@ -322,38 +322,17 @@ export default function Home() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <main className="min-h-screen bg-gray-50">
-  <div className="mx-auto max-w-7xl px-4 lg:px-6">
-  <div className="grid grid-cols-1 gap-3 items-start lg:[grid-template-columns:minmax(0,1fr)_770px]">
+    <main className="min-h-screen">
+  <div className="mx-0 max-w-9xl px-4 lg:px-0">
+  <div className="grid grid-cols-1 gap-1 items-start lg:[grid-template-columns:minmax(0,1fr)_860px]">
 
 
     
       {/* LEFT: form */}
-      <div className="min-w-0 space-y-6 pr-10">
+      <div className="min-w-sm space-y-7 pr-1">
         <h1 className="text-2xl font-semibold">New Product Submission</h1>
 
-        {/* Requester section */}
-        <Card title="Requester" subtitle="Who’s submitting this?">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field
-              label="Requester Email"
-              help="We’ll store this with the submission."
-            >
-              <Input
-                value={requester}
-                onChange={(e) => setRequester(e.target.value)}
-                placeholder="you@company.com"
-              />
-            </Field>
-            <Field label="Work Request Number">
-              <Input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder=""
-              />
-            </Field>
-          </div>
-        </Card>
+       
 
     
         {/* Product blocks */}
@@ -379,7 +358,7 @@ export default function Home() {
                 </button>
               </div>
 
-              <div className="border rounded-xl p-3 bg-gray-50">
+              <div className="shadow-sm rounded-xl p-3 bg-gray-50">
   <div className="mb-2 text-sm font-medium">Requested Cultures</div>
   <CulturePicker
     value={prod.requestedCultures}
@@ -866,8 +845,8 @@ export default function Home() {
         ))}
 
         {/* Sticky submit bar */}
-        <div className="sticky bottom-0 left-0 right-0 z-10 border-t bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="mx-auto max-w-5xl p-3 flex items-center justify-end gap-3">
+        <div className="sticky bottom-0 left-0 right-0 z-10 shadow-xl ring-blue-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+          <div className="mx-auto max-w-5xl p-6 flex items-center justify-end gap-3">
             <Button
               variant="subtle"
               onClick={() =>

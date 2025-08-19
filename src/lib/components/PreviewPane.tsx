@@ -381,11 +381,11 @@ export default function PreviewPane({
   }, [product, culture]);
 
   return (
-    <aside className="lg:sticky lg:top-8 min-w-0">
+    <aside className="lg:sticky lg:top-10 min-w-2xl">
       <iframe
         title="Live Product Preview"
         srcDoc={html}
-        className="w-full h-[900px] rounded-2xl border shadow-sm bg-white"
+        className="w-full h-[900px] rounded-2xl border border-gray-200 shadow-sm px-5"
         // Add sandbox/allow as needed depending on your live.css or scripts
         // sandbox="allow-same-origin"
       />

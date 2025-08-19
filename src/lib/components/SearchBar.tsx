@@ -17,7 +17,7 @@ export default function Search({ placeholder = "Search…" }: { placeholder?: st
   }, [value, router]);
 
   return (
-    <div className="rounded-xl border bg-white p-3">
+    <div className="rounded-xl shadow-md bg-white p-3">
       <input
         className="w-full rounded-lg border px-3 py-2 focus-visible:ring-2 focus-visible:ring-black/60 outline-none"
         placeholder={placeholder}

@@ -11,14 +11,14 @@ type Row = {
 export default function SubmissionTable({ submissions }: { submissions: Row[] }) {
   if (!submissions.length) {
     return (
-      <div className="rounded-xl border bg-white p-6 text-center text-gray-500">
+      <div className="rounded-xl shadow-md bg-white p-6 text-center text-gray-500">
         No submissions found.
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border bg-white">
+    <div className="overflow-x-auto rounded-xl shadow-md bg-white">
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50">
           <tr>
@@ -27,7 +27,7 @@ export default function SubmissionTable({ submissions }: { submissions: Row[] })
             <th className="p-3 text-left">Note</th>
             <th className="p-3 text-left">Products</th>
             <th className="p-3 text-left">Created</th>
-            <th className="p-3 text-left"></th>
+            <th className="p-3 text-left">Edit</th>
           </tr>
         </thead>
         <tbody>
