@@ -1,0 +1,24 @@
+/* No JS in the preview, so hide zoom/lightbox to avoid mis-positioned overlays */
+.m-prodMedia__zoom,
+.m-prodMedia__wrapper.-lightbox { display: none !important; }
+
+/* Make sure the main image itself is centered and not cropped */
+.m-prodMedia__mediaItem__contain img,
+.m-prodMedia__image {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  margin-left: -75px;
+}
+
+/* (Optional) center the <img> within its contain box if the site CSS uses flex/absolute */
+.m-prodMedia__mediaItem__contain {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.m-prodMedia__zoom { display:none !important; } /* or if you keep it visible: */
+.m-prodMedia__zoom { position:absolute; inset:0; z-index:0; }
+.m-prodMedia__list.-images { position:relative; z-index:1; }

@@ -1,0 +1,89 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Submission {
+  id        Int      @id @default(autoincrement())
+  requester String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt   // 👈 add @default(now())
+  products  SubmissionProduct[]
+
+  @@index([createdAt])
+}
+
+model SubmissionProduct {
+  id               Int        @id @default(autoincrement())
+  submissionId     Int
+  sku              String
+  productName      String
+  shortDescription String?
+  longDescription  String?
+  stamp            String?
+  offSaleMessage   String?
+  onSaleDate       DateTime?
+  offSaleDate      DateTime?
+  savingsUS        String?
+  savingsCA        String?
+
+  // UOM (region-specific)
+  uomTitleUS       String?
+  uomValueUS       String?
+  uomTitleCA       String?
+  uomValueCA       String?
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  accessories      SubmissionProductAccessory[]
+  cultures         SubmissionProductCulture[]
+  recommendations  SubmissionProductRecommendation[]
+
+  @@index([submissionId])
+  @@index([sku])
+  @@unique([submissionId, sku]) // prevent duplicate SKU in one submission
+}
+
+model SubmissionProductRecommendation {
+  id        Int               @id @default(autoincrement())
+  productId Int
+  sku       String
+
+  product   SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model SubmissionProductAccessory {
+  id             Int               @id @default(autoincrement())
+  productId      Int
+  accessorySku   String?
+  accessoryLabel String?
+
+  product        SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model SubmissionProductCulture {
+  id              Int               @id @default(autoincrement())
+  productId       Int
+  cultureCode     String            // or use an enum as shown above
+  translatedName  String?
+  translatedShort String?
+  translatedLong  String?
+
+  product         SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, cultureCode])
+  @@index([cultureCode])
+  @@index([productId])
+}
