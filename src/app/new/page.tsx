@@ -323,13 +323,13 @@ export default function Home() {
   // ---------------------------------------------------------------------------
   return (
     <main className="min-h-screen">
-  <div className="mx-0 max-w-9xl px-4 lg:px-0">
-  <div className="grid grid-cols-1 gap-1 items-start lg:[grid-template-columns:minmax(0,1fr)_860px]">
+  <div className="mx-auto max-w-8xl px-2">
+   <div className="flex flex-col xl:flex-row xl:items-start xl:gap-6">
 
 
     
       {/* LEFT: form */}
-      <div className="min-w-sm space-y-7 pr-1">
+      <div className="flex-1 min-w-2xs space-y-7">
         <h1 className="text-2xl font-semibold">New Product Submission</h1>
 
        

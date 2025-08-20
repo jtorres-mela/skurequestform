@@ -380,8 +380,10 @@ export default function PreviewPane({
     return buildPreviewHtml(product, culture);
   }, [product, culture]);
 
+
+
   return (
-    <aside className="lg:sticky lg:top-10 min-w-2xl">
+    <aside className="mt-6 xl:mt-0 xl:flex-none xl:w-[860px] xl:sticky xl:top-20">
       <iframe
         title="Live Product Preview"
         srcDoc={html}
