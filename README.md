@@ -1,31 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+SKU Request Management System
 
-## Getting Started
+This is a Next.js
+ project for managing SKU requests at Melaleuca.
+It provides tools to create, revise, and track SKU submissions, including product details, accessories, culture translations, and recommendations.
 
-First, run the development server:
+Built with:
 
-```bash
+⚡ Next.js (App Router)
+
+🗄️ Prisma + SQLite (dev) / configurable for other DBs
+
+🎨 Tailwind CSS
+
+🔗 Type-safe API routes
+
+Getting Started
+1. Install dependencies
+npm install
+
+2. Set up environment
+
+Create a .env file in the project root with your database connection string. Example for SQLite:
+
+DATABASE_URL="file:./dev.db"
+
+3. Generate Prisma Client
+npx prisma generate
+
+4. Run database migrations
+npx prisma migrate dev
+
+5. Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Visit http://localhost:3000
+ in your browser.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Key Features
 
-## Learn More
+Dashboard: View all requests and SKUs in a streamlined table.
 
-To learn more about Next.js, take a look at the following resources:
+Request Management: Create requests, attach notes, set due dates, and assign submitters.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Product Submissions: Track revisions per SKU with version history.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Prefill Revisions: Start a new submission prefilled from an existing SKU.
 
+Accessories, Recommendations & Cultures: Add supporting data for each SKU.
+
+Admin View: Manage all requests centrally.
+
+Tech Stack
+
+Frontend: Next.js 14 (App Router), TypeScript, TailwindCSS
+
+Backend: Next.js API routes with Prisma ORM
+
+Database: SQLite (development) — can be swapped for PostgreSQL/MySQL in production
+
+Development Notes
+
+The schema is defined in prisma/schema.prisma.
+
+Generated Prisma client is available at @/lib/prisma.
+
+Main UI work is in src/app/, including:
+
+request/[id]/page.tsx → ManageRequest screen
+
+new/page.tsx → Add SKU submission form
+
+We follow a feature branch workflow (optional) with pull requests into main.
+
+Learn More
+
+Next.js Documentation
+
+Prisma Documentation
+
+Tailwind CSS Docs
