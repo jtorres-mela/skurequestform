@@ -82,25 +82,89 @@ Then open [http://localhost:3000](http://localhost:3000)
 
 
 
-## 🗂️ Key Paths
-`src/
-├─ app/
-│  ├─ page.tsx                       # Dashboard
-│  ├─ new/page.tsx                   # New SKU (or Add Revision prefilled)
-│  └─ request/[id]/page.tsx          # Manage Request view (SKUs table)
-│
-├─ app/api/
-│  ├─ requests/route.ts              # Create/list Requests
-│  └─ submissions/
-│     ├─ route.ts                    # Create Submission with products
-│     └─ [submissionId]/products/[productId]/revisions/route.ts
-│                                    # Create Revision for a SKU
-│
-└─ lib/
-   ├─ prisma.ts                      # Prisma client
-   ├─ components/RequestTable.tsx    # Requests table
-   └─ components/SubmissionTable.tsx # Legacy submissions table
-`
+<h2>🗂️ Key Paths</h2>
+
+<details open>
+  <summary><strong>App Routes</strong></summary>
+  <table>
+    <thead>
+      <tr>
+        <th align="left">Path</th>
+        <th align="left">Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>src/app/page.tsx</code></td>
+        <td>Dashboard</td>
+      </tr>
+      <tr>
+        <td><code>src/app/new/page.tsx</code></td>
+        <td>New SKU form (also used for “Add Revision” with prefill)</td>
+      </tr>
+      <tr>
+        <td><code>src/app/request/[id]/page.tsx</code></td>
+        <td>Manage Request view (current SKU table, actions)</td>
+      </tr>
+    </tbody>
+  </table>
+</details>
+
+<details open>
+  <summary><strong>API Routes</strong></summary>
+  <table>
+    <thead>
+      <tr>
+        <th align="left">Path</th>
+        <th align="left">Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>src/app/api/requests/route.ts</code></td>
+        <td>Create/list Requests</td>
+      </tr>
+      <tr>
+        <td><code>src/app/api/submissions/route.ts</code></td>
+        <td>Create Submission (group) with products</td>
+      </tr>
+      <tr>
+        <td><code>src/app/api/submissions/[submissionId]/products/[productId]/revisions/route.ts</code></td>
+        <td>Create a Revision for a SKU</td>
+      </tr>
+    </tbody>
+  </table>
+</details>
+
+<details open>
+  <summary><strong>Lib & Schema</strong></summary>
+  <table>
+    <thead>
+      <tr>
+        <th align="left">Path</th>
+        <th align="left">Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>src/lib/prisma.ts</code></td>
+        <td>Prisma client</td>
+      </tr>
+      <tr>
+        <td><code>prisma/schema.prisma</code></td>
+        <td>Database schema</td>
+      </tr>
+      <tr>
+        <td><code>src/lib/components/RequestTable.tsx</code></td>
+        <td>Requests table component</td>
+      </tr>
+      <tr>
+        <td><code>src/lib/components/SubmissionTable.tsx</code></td>
+        <td>Legacy submissions table</td>
+      </tr>
+    </tbody>
+  </table>
+</details>
 
 
 
