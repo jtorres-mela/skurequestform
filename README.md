@@ -1,82 +1,150 @@
-SKU Request Management System
+# SKU Request Management System
+>
+  A Next.js app for creating, revising, and tracking SKU requests at **Melaleuca**.
 
-This is a Next.js
- project for managing SKU requests at Melaleuca.
-It provides tools to create, revise, and track SKU submissions, including product details, accessories, culture translations, and recommendations.
 
-Built with:
 
-⚡ Next.js (App Router)
+  ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs)
+  ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
+  ![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)
+  ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38B2AC?logo=tailwindcss&logoColor=white)
 
-🗄️ Prisma + SQLite (dev) / configurable for other DBs
 
-🎨 Tailwind CSS
+SKU Requests streamlines product submissions and revisions, including accessories, culture translations, and recommendations — with version history per SKU.
 
-🔗 Type-safe API routes
 
-Getting Started
-1. Install dependencies
-npm install
 
-2. Set up environment
+## ✨ Features
 
-Create a .env file in the project root with your database connection string. Example for SQLite:
+  * **Dashboard**: Scan requests and current SKUs in a streamlined table.
+  * **Request Management**: Create requests, set due dates, and track notes.
+  * **SKU Submissions**: Add SKUs to a request with full product metadata.
+  * **Revisions &amp; Versioning**: Add revisions per SKU and preserve history.
+  * **Prefill Revisions**: Start from an existing SKU to speed up edits.
+  * **Accessories, Recommendations, Cultures**: First-class nested data.
+  * **Admin View**: Central management for all requests (WIP as needed).
 
-DATABASE_URL="file:./dev.db"
 
-3. Generate Prisma Client
-npx prisma generate
 
-4. Run database migrations
+
+## 🧱 Tech Stack
+
+  
+    
+      Layer
+      Tools
+    
+  
+  
+    
+      Frontend
+      Next.js (App Router), TypeScript
+    
+    
+      Styling
+      Tailwind CSS
+    
+    
+      Backend
+      Next.js API routes
+    
+    
+      Database
+      Prisma ORM + SQLite (dev, easy to swap)
+    
+  
+
+Swap SQLite for PostgreSQL/MySQL in production by changing `DATABASE_URL` and running migrations.
+
+
+
+## 🚀 Getting Started
+
+### 1. Install
+`npm install
+`
+
+### 2. Environment
+Create a `.env` in the project root:
+`DATABASE_URL="file:./dev.db"
+`
+
+### 3. Prisma
+`npx prisma generate
 npx prisma migrate dev
+`
 
-5. Start the development server
-npm run dev
+### 4. Run Dev Server
+`npm run dev
+`
+
+Then open [http://localhost:3000](http://localhost:3000)
 
 
-Visit http://localhost:3000
- in your browser.
 
-Key Features
+## 🗂️ Key Paths
+`src/
+├─ app/
+│  ├─ page.tsx                       # Dashboard
+│  ├─ new/page.tsx                   # New SKU (or Add Revision prefilled)
+│  └─ request/[id]/page.tsx          # Manage Request view (SKUs table)
+│
+├─ app/api/
+│  ├─ requests/route.ts              # Create/list Requests
+│  └─ submissions/
+│     ├─ route.ts                    # Create Submission with products
+│     └─ [submissionId]/products/[productId]/revisions/route.ts
+│                                    # Create Revision for a SKU
+│
+└─ lib/
+   ├─ prisma.ts                      # Prisma client
+   ├─ components/RequestTable.tsx    # Requests table
+   └─ components/SubmissionTable.tsx # Legacy submissions table
+`
 
-Dashboard: View all requests and SKUs in a streamlined table.
 
-Request Management: Create requests, attach notes, set due dates, and assign submitters.
 
-Product Submissions: Track revisions per SKU with version history.
+## 🔁 Revisions Flow
 
-Prefill Revisions: Start a new submission prefilled from an existing SKU.
+  1. **Manage Request** (`/request/[id]`) shows the **current** revision per SKU.
+  1. Click **Add Revision** → opens `/new?requestId=…&amp;fromProductId=…&amp;submissionId=…`.
+  1. Prefill logic loads the existing SKU.
+  1. On submit, the Revisions API marks the previous SKU revision as not current.
+  1. Optional **History** view lists all revisions for a SKU.
 
-Accessories, Recommendations & Cultures: Add supporting data for each SKU.
 
-Admin View: Manage all requests centrally.
 
-Tech Stack
 
-Frontend: Next.js 14 (App Router), TypeScript, TailwindCSS
+## 🧩 Schema Highlights
 
-Backend: Next.js API routes with Prisma ORM
+  * `SubmissionProduct` includes:
+    <ul>
+      * `version Int @default(1)`
+      * `isCurrent Boolean @default(true)`
+      * `@@unique([submissionId, sku, version])`
+      * Flags: `noEndDate`, `noSavings`, `isPdpRequested`
+    
+  
+  Nested models:
+    
+      * `SubmissionProductAccessory`
+      * `SubmissionProductRecommendation`
+      * `SubmissionProductCulture`
+    
+  
 
-Database: SQLite (development) — can be swapped for PostgreSQL/MySQL in production
+See `prisma/schema.prisma` for full schema.
 
-Development Notes
 
-The schema is defined in prisma/schema.prisma.
 
-Generated Prisma client is available at @/lib/prisma.
+## 📦 Scripts
+`npm run dev        # start dev server
+npm run build      # production build
+npm run start      # start production server
+npx prisma studio  # browse database (dev)
+`
 
-Main UI work is in src/app/, including:
 
-request/[id]/page.tsx → ManageRequest screen
 
-new/page.tsx → Add SKU submission form
-
-We follow a feature branch workflow (optional) with pull requests into main.
-
-Learn More
-
-Next.js Documentation
-
-Prisma Documentation
-
-Tailwind CSS Docs
+## 📜 License
+Internal project. © Melaleuca.
