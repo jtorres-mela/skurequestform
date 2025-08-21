@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
@@ -7,49 +8,107 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model Submission {
-  id        Int      @id @default(autoincrement())
-  requester String?
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt   // 👈 add @default(now())
-  products  SubmissionProduct[]
+/* ----------------------------
+   Requests (parent “work item”)
+   ---------------------------- */
+model Request {
+  id             Int       @id @default(autoincrement())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  requesterName  String?
+  requesterEmail String?
+  dueDate        DateTime?
+  adoId          String?   // Azure DevOps Work Request number (optional)
+  userStory      String?   // ADO User Story number (optional)
+  notes          String?
+
+  // children
+  submissions    Submission[]
 
   @@index([createdAt])
 }
 
+/* ----------------------------
+   Submissions (group of SKUs)
+   ---------------------------- */
+model Submission {
+  id        Int       @id @default(autoincrement())
+  requester String?
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // optional parent Request
+  requestId Int?
+  request   Request?  @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  // children
+  products  SubmissionProduct[]
+
+  @@index([createdAt])
+  @@index([requestId])
+}
+
+/* ---------------------------------
+   Individual SKU row in a submission
+   --------------------------------- */
 model SubmissionProduct {
-  id               Int        @id @default(autoincrement())
-  submissionId     Int
-  sku              String
-  productName      String
-  shortDescription String?
-  longDescription  String?
-  stamp            String?
-  offSaleMessage   String?
-  onSaleDate       DateTime?
-  offSaleDate      DateTime?
-  savingsUS        String?
-  savingsCA        String?
+  id                    Int       @id @default(autoincrement())
+  submissionId          Int
 
-  // UOM (region-specific)
-  uomTitleUS       String?
-  uomValueUS       String?
-  uomTitleCA       String?
-  uomValueCA       String?
+  // Versioning
+  sku                   String            // ← keep only ONE sku field
+  version               Int       @default(1)   // 1 = original, 2+ = revisions
+  isCurrent             Boolean   @default(true)
 
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  // Core
+  productName           String
+  shortDescription      String?
+  longDescription       String?
 
-  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  // Marketing flags / dropdowns
+  stamp                 String?
+  offSaleMessage        String?
 
-  accessories      SubmissionProductAccessory[]
-  cultures         SubmissionProductCulture[]
-  recommendations  SubmissionProductRecommendation[]
+  // Dates
+  onSaleDate            DateTime?
+  offSaleDate           DateTime?
+  noEndDate             Boolean   @default(false)
+
+  // Savings
+  savingsUS             String?
+  savingsCA             String?
+  noSavings             Boolean   @default(false)
+
+  // PDP
+  isPdpRequested        Boolean   @default(false)
+  pdpWorkRequest        String?
+
+  // Unit of Measure
+  uomTitleUS            String?
+  uomValueUS            String?
+  uomTitleCA            String?
+  uomValueCA            String?
+
+  // Translations gate & requested cultures (checkboxes)
+  includeTranslations   Boolean   @default(false)
+  requestedCulturesJson Json?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // relations
+  submission            Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  accessories           SubmissionProductAccessory[]
+  cultures              SubmissionProductCulture[]
+  recommendations       SubmissionProductRecommendation[]
 
   @@index([submissionId])
   @@index([sku])
-  @@unique([submissionId, sku]) // prevent duplicate SKU in one submission
+  // Unique per revision instance:
+  @@unique([submissionId, sku, version])
+  // Ensure only one current:
+  @@unique([submissionId, sku, isCurrent])
 }
 
 model SubmissionProductRecommendation {
@@ -76,7 +135,7 @@ model SubmissionProductAccessory {
 model SubmissionProductCulture {
   id              Int               @id @default(autoincrement())
   productId       Int
-  cultureCode     String            // or use an enum as shown above
+  cultureCode     String            // e.g., "en-US", "en-CA"
   translatedName  String?
   translatedShort String?
   translatedLong  String?

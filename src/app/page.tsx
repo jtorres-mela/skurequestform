@@ -1,55 +1,96 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import Search from "@/lib/components/SearchBar";
-import SubmissionTable from "@/lib/components/SubmissionTable";
+import RequestTable, { type RequestRow } from "@/lib/components/RequestTable";
 
 export default async function Dashboard(
   props: {
-    // Next 15 passes a Promise for server components
+    // Next can pass this as a Promise in async server components
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   }
 ) {
-  // ✅ await it
   const sp = await props.searchParams;
   const qParam = Array.isArray(sp.q) ? sp.q[0] : sp.q;
   const q = (qParam ?? "").trim();
 
-  // ...use `q` as before
-  const submissions = await prisma.submission.findMany({
+  const requests = await prisma.request.findMany({
     where: q
       ? {
           OR: [
-            { requester: { contains: q, mode: "insensitive" } },
-            { note:      { contains: q, mode: "insensitive" } },
-            { products:  { some: { OR: [
-              { sku:         { contains: q, mode: "insensitive" } },
-              { productName: { contains: q, mode: "insensitive" } },
-            ]}}}
+            { requesterName:  { contains: q, mode: "insensitive" } },
+            { requesterEmail: { contains: q, mode: "insensitive" } },
+            { notes:          { contains: q, mode: "insensitive" } },
+            {
+              submissions: {
+                some: {
+                  products: {
+                    some: {
+                      OR: [
+                        { sku:         { contains: q, mode: "insensitive" } },
+                        { productName: { contains: q, mode: "insensitive" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
           ],
         }
       : undefined,
     orderBy: { createdAt: "desc" },
-    include: { products: true },
+    take: 50,
+    include: {
+      submissions: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          products: {
+            select: { id: true, sku: true, productName: true },
+          },
+        },
+      },
+    },
+  });
+
+  // Infer the element type from the query result
+  type RequestWithSubs = typeof requests[number];
+
+  const rows: RequestRow[] = requests.map((r: RequestWithSubs) => {
+    const allProducts = r.submissions.flatMap((s: RequestWithSubs["submissions"][number]) => s.products);
+
+    return {
+      id: r.id,
+      requesterName: r.requesterName,
+      requesterEmail: r.requesterEmail,
+      dueDate: r.dueDate,
+      createdAt: r.createdAt,
+      skuCount: allProducts.length,
+      sampleProducts: allProducts.slice(0, 5),
+    };
   });
 
   return (
     <div className="space-y-6">
+      {/* Header Row */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-gray-600">Search past submissions or start a new request.</p>
+          <p className="text-sm text-gray-600">
+            Search requests or start a new one.
+          </p>
         </div>
         <Link
-          href="/new"
-          className="inline-flex items-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/90"
+          href="/request/new"
+          className="inline-flex items-center rounded-lg bg-[rgb(48,134,45)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[rgb(40,115,38)]"
         >
-          + Add SKU Request
+          + Create New Request
         </Link>
       </div>
 
-      <Search placeholder="Search by SKU, product name, requester, or note…" />
+      {/* Search Input */}
+      <Search placeholder="Search by requester, email, notes, SKU, or product name…" />
 
-      <SubmissionTable submissions={submissions} />
+      {/* Requests Table */}
+      <RequestTable requests={rows} />
     </div>
   );
 }

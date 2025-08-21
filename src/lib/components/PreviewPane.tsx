@@ -23,8 +23,8 @@ type ProductForm = {
   uomTitleCA?: string;
   uomValueCA?: string;
 
-  savingsUS?: string;
-  savingsCA?: string;
+  savingsUS?: string | null;
+  savingsCA?: string | null;
 
   // NEW:
   imageUrl?: string;          // e.g. "/10885h-01-enus.png"

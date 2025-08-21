@@ -10,18 +10,34 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="sticky top-0 z-20 bg-white border-b">
-          <nav className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-6">
-            <Link href="/" className="font-semibold">SKU Requests</Link>
-            <div className="ml-auto flex items-center gap-4 text-sm">
-              <Link href="/" className="hover:underline">Dashboard</Link>
-              <Link href="/new" className="hover:underline">Add SKU Request</Link>
-              <Link href="/admin" className="hover:underline">Admin</Link>
-            </div>
-          </nav>
-        </header>
-        <main className="mx-auto max-w-8xl px-20 py-4">{children}</main>
+        {/* HEADER */}
+
+<header className="sticky top-0 z-50 bg-white shadow-md h-16 flex items-center">
+  <nav className="w-full flex items-center justify-between px-6">
+    {/* Brand / Title */}
+    <Link href="/" className="font-semibold text-lg">
+      <span className="text-[rgb(48,134,45)]">Melaleuca</span>{" "}
+      SKU Requests
+    </Link>
+
+    {/* Right-side links */}
+    <div className="flex items-center gap-6 text-sm">
+      <Link href="/" className="hover:underline">
+        Dashboard
+      </Link>
+      <Link href="/admin" className="hover:underline">
+        Admin
+      </Link>
+    </div>
+  </nav>
+</header>
+
+
+
+        {/* MAIN CONTENT */}
+        <main className="mx-auto max-w-8xl px-6 py-6">{children}</main>
       </body>
     </html>
   );
 }
+

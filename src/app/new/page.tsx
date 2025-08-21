@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import PreviewPane from "@/lib/components/PreviewPane";
 
 
@@ -32,18 +33,17 @@ type ProductForm = {
   uomValueUS?: string;
   uomTitleCA?: string;
   uomValueCA?: string;
-  savingsUS?: string;
-  savingsCA?: string;
+  savingsUS?: string | null;
+  savingsCA?: string | null;
   noSavings?: boolean;
   recommendations?: RecommendationRow[];
 
   requestedCultures?: string[];
 
-  ifPdp?: boolean;
-  pdpWorkRequest?: string;
-
-  accessories: AccessoryRow[];
+  isPdpRequested?: boolean;    // ✅ renamed
+  pdpWorkRequest?: string | null;
   includeTranslations?: boolean;
+  accessories: AccessoryRow[];
   cultures: CultureRow[];
 };
 
@@ -68,6 +68,8 @@ const OFFSALE_OPTIONS = [
   "Available Again Soon",
   "Temporarily Unavailable",
 ];
+
+
 
 // Parse a simple comma-separated list into trimmed non-empty strings
 const parseCsv = (s: string) =>
@@ -272,51 +274,189 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
 
 
 /* =============================================================================
-   Page component
+   Page component (ONLY ONE default export; keep all hooks/handlers/JSX inside)
 ============================================================================= */
-export default function Home() {
+export default function Page() {
+  const sp = useSearchParams();
+  const router = useRouter();
+
+  // Keep this stable; useSearchParams changes when the URL changes
+const requestId = React.useMemo(() => {
+  const raw = sp.get("requestId");
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}, [sp]);
+
+const fromProductId = React.useMemo(() => {
+  const raw = sp.get("fromProductId");
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}, [sp]);
+
+const submissionId = React.useMemo(() => {
+  const raw = sp.get("submissionId");
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}, [sp]);
+
   // ---------------------------------------------------------------------------
   // Top-level form state
   // ---------------------------------------------------------------------------
   const [requester, setRequester] = React.useState("");
   const [note, setNote] = React.useState("");
   const [products, setProducts] = React.useState<ProductForm[]>([
-    { sku: "", productName: "", accessories: [], cultures: [], includeTranslations: false  },
+    {
+      sku: "",
+      productName: "",
+      accessories: [],
+      cultures: [],
+      // sensible defaults
+      noEndDate: false,
+      noSavings: false,
+      includeTranslations: false,
+      isPdpRequested: false,
+      pdpWorkRequest: null,
+      savingsUS: null,
+      savingsCA: null,
+    },
   ]);
 
-  const [status, setStatus] = React.useState<"idle" | "saving" | "done" | "error">(
-    "idle"
-  );
+  const [status, setStatus] =
+    React.useState<"idle" | "saving" | "done" | "error">("idle");
   const [err, setErr] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
 
+React.useEffect(() => {
+    let cancelled = false;
 
+    (async () => {
+      if (!fromProductId || !submissionId) return;
+
+      const res = await fetch(`/api/submissions/${submissionId}/products/${fromProductId}`);
+      if (!res.ok) return; // optionally surface an error
+
+      const cur = await res.json();
+      if (cancelled) return;
+
+      setProducts([{
+        sku: cur.sku ?? "",
+        productName: cur.productName ?? "",
+        shortDescription: cur.shortDescription ?? undefined,
+        longDescription: cur.longDescription ?? undefined,
+        stamp: cur.stamp ?? undefined,
+        offSaleMessage: cur.offSaleMessage ?? undefined,
+        onSaleDate: cur.onSaleDate ? new Date(cur.onSaleDate).toISOString().slice(0,10) : undefined,
+        offSaleDate: cur.offSaleDate ? new Date(cur.offSaleDate).toISOString().slice(0,10) : undefined,
+        noEndDate: !!cur.noEndDate,
+        uomTitleUS: cur.uomTitleUS ?? undefined,
+        uomValueUS: cur.uomValueUS ?? undefined,
+        uomTitleCA: cur.uomTitleCA ?? undefined,
+        uomValueCA: cur.uomValueCA ?? undefined,
+        savingsUS: cur.savingsUS ?? undefined,
+        savingsCA: cur.savingsCA ?? undefined,
+        noSavings: !!cur.noSavings,
+        isPdpRequested: !!cur.isPdpRequested,
+        pdpWorkRequest: cur.pdpWorkRequest ?? null,
+        includeTranslations: !!cur.includeTranslations,
+        accessories: (cur.accessories ?? []).map((a: any) => ({
+          accessorySku: a.accessorySku ?? undefined,
+          accessoryLabel: a.accessoryLabel ?? undefined,
+        })),
+        recommendations: (cur.recommendations ?? []).map((r: any) => ({ sku: r.sku })),
+        cultures: (cur.cultures ?? []).map((c: any) => ({
+          cultureCode: c.cultureCode,
+          translatedName: c.translatedName ?? undefined,
+          translatedShort: c.translatedShort ?? undefined,
+          translatedLong: c.translatedLong ?? undefined,
+        })),
+      }]);
+    })();
+
+    return () => { cancelled = true; };
+  }, [fromProductId, submissionId]);
+  
 
   // ---------------------------------------------------------------------------
   // Submit to /api/submissions
   // ---------------------------------------------------------------------------
-  async function submit() {
-    setStatus("saving");
-    setErr(null);
-    try {
-      const payload = {
-        requester,
+async function submit() {
+  setStatus("saving");
+  setErr(null);
+
+  try {
+    if (!requestId || !Number.isFinite(requestId)) {
+      throw new Error("Missing requestId — open this page from a Request.");
+    }
+
+    // build one product payload from your form state
+    const p = products[0];
+    const productPayload = {
+      sku: p.sku,
+      productName: p.productName,
+      shortDescription: p.shortDescription ?? null,
+      longDescription: p.longDescription ?? null,
+      stamp: p.stamp ?? null,
+      offSaleMessage: p.offSaleMessage ?? null,
+
+      onSaleDate: p.onSaleDate ?? null,
+      offSaleDate: p.noEndDate ? null : (p.offSaleDate ?? null),
+
+      uomTitleUS: p.uomTitleUS ?? null,
+      uomValueUS: p.uomValueUS ?? null,
+      uomTitleCA: p.uomTitleCA ?? null,
+      uomValueCA: p.uomValueCA ?? null,
+
+      savingsUS: p.noSavings ? null : (p.savingsUS ?? null),
+      savingsCA: p.noSavings ? null : (p.savingsCA ?? null),
+      noSavings: !!p.noSavings,
+
+      noEndDate: !!p.noEndDate,
+
+      isPdpRequested: !!p.isPdpRequested,
+      pdpWorkRequest: p.isPdpRequested ? (p.pdpWorkRequest ?? null) : null,
+
+      includeTranslations: !!p.includeTranslations,
+      accessories: p.accessories ?? [],
+      recommendations: p.recommendations ?? [],
+      cultures: p.includeTranslations ? (p.cultures ?? []) : [],
+    };
+
+    if (fromProductId && submissionId) {
+      // 👉 Create a REVISION for an existing product
+      const res = await fetch(
+        `/api/submissions/${submissionId}/products/${fromProductId}/revisions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(productPayload),
+        }
+      );
+      if (!res.ok) throw new Error(await res.text());
+    } else {
+      // 👉 Create a NEW submission (group) with a product
+      const createPayload = {
+        requestId,
         note,
-        requestedCultures: [], // still supported if you use presets
-        products,
+        requestedCultures: [], // optional, if you still support presets
+        products: [productPayload],
       };
+
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(createPayload),
       });
-      if (!res.ok) throw new Error("Failed to save");
-      setStatus("done");
-    } catch (e: any) {
-      setStatus("error");
-      setErr(e.message);
+      if (!res.ok) throw new Error(await res.text());
     }
+
+    setStatus("done");
+    router.push(`/request/${requestId}`);
+  } catch (e: any) {
+    setStatus("error");
+    setErr(e.message || "Failed to save");
   }
+}
+
 
   // ---------------------------------------------------------------------------
   // Render
@@ -468,10 +608,10 @@ export default function Home() {
     <input
       type="checkbox"
       className="h-4 w-4"
-      checked={prod.ifPdp ?? false}
+      checked={prod.isPdpRequested ?? false}
       onChange={(e) => {
         const cp = [...products];
-        cp[i].ifPdp = e.target.checked;
+        cp[i].isPdpRequested = e.target.checked;
         // reset work request number if unchecked
         if (!e.target.checked) cp[i].pdpWorkRequest = "";
         setProducts(cp);
@@ -480,7 +620,7 @@ export default function Home() {
     <span className="text-sm">Is a product detail page requested for this SKU?</span>
   </label>
 
-  {prod.ifPdp && (
+  {prod.isPdpRequested && (
     <label className="block">
       <span className="text-sm">PDP Work Request Number</span>
       <input
@@ -498,25 +638,34 @@ export default function Home() {
 </div>
 
 
-             {/* Dates */}
+{/* Dates */}
 <div className="space-y-3">
   <Field label="On Sale Date">
     <Input
       type="date"
-      value={
-        typeof prod.onSaleDate === "string"
-          ? prod.onSaleDate.slice(0, 10)
-          : ""
-      }
+      value={typeof prod.onSaleDate === "string" ? prod.onSaleDate.slice(0, 10) : ""}
       onChange={(e) => {
         const cp = [...products];
-        cp[i].onSaleDate = e.target.value
-          ? new Date(e.target.value).toISOString()
-          : null;
+        cp[i].onSaleDate = e.target.value ? new Date(e.target.value).toISOString() : null;
         setProducts(cp);
       }}
     />
   </Field>
+
+  <div className="flex items-center gap-3">
+    <input
+      id={`no-end-${i}`}
+      type="checkbox"
+      checked={!!prod.noEndDate}
+      onChange={(e) => {
+        const cp = [...products];
+        cp[i].noEndDate = e.target.checked;
+        if (e.target.checked) cp[i].offSaleDate = null; // clear it
+        setProducts(cp);
+      }}
+    />
+    <label htmlFor={`no-end-${i}`} className="text-sm">No End Date Needed</label>
+  </div>
 
   <Field label="Off Sale Date">
     <Input
@@ -524,41 +673,18 @@ export default function Home() {
       disabled={!!prod.noEndDate}
       value={
         prod.noEndDate
-          ? "" // show empty when disabled
-          : typeof prod.offSaleDate === "string"
-            ? prod.offSaleDate.slice(0, 10)
-            : ""
+          ? ""
+          : (typeof prod.offSaleDate === "string" ? prod.offSaleDate.slice(0, 10) : "")
       }
       onChange={(e) => {
         const cp = [...products];
-        cp[i].offSaleDate = e.target.value
-          ? new Date(e.target.value).toISOString()
-          : null;
+        cp[i].offSaleDate = e.target.value ? new Date(e.target.value).toISOString() : null;
         setProducts(cp);
       }}
     />
-    {/* No end date toggle */}
-    <div className="mt-2">
-      <label className="inline-flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="h-4 w-4"
-          checked={!!prod.noEndDate}
-          onChange={(e) => {
-            const cp = [...products];
-            cp[i].noEndDate = e.target.checked;
-            if (e.target.checked) {
-              // clear the date so nothing is sent/stored
-              cp[i].offSaleDate = null;
-            }
-            setProducts(cp);
-          }}
-        />
-        <span>No End Date Needed (Open Stock SKU)</span>
-      </label>
-    </div>
   </Field>
 </div>
+
 
 
              {/* Unit of Measure */}
