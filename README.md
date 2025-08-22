@@ -27,34 +27,35 @@ SKU Requests streamlines product submissions and revisions, including accessorie
 
 
 
-## 🧱 Tech Stack
+<section id="tech-stack">
+  <h2>🔧 Tech Stack</h2>
 
-  
-    
-      Layer
-      Tools
-    
-  
-  
-    
-      Frontend
-      Next.js (App Router), TypeScript
-    
-    
-      Styling
-      Tailwind CSS
-    
-    
-      Backend
-      Next.js API routes
-    
-    
-      Database
-      Prisma ORM + SQLite (dev, easy to swap)
-    
-  
+  <h3>🖥️ Frontend</h3>
+  <ul>
+    <li><strong>Next.js 14 (App Router)</strong> — Modern React framework with SSR/SSG and file-based routing.</li>
+    <li><strong>TypeScript</strong> — Static typing for safer, scalable code.</li>
+  </ul>
 
-Swap SQLite for PostgreSQL/MySQL in production by changing `DATABASE_URL` and running migrations.
+  <h3>🎨 Styling</h3>
+  <ul>
+    <li><strong>Tailwind CSS</strong> — Utility-first styling for fast, responsive UI.</li>
+  </ul>
+
+  <h3>⚙️ Backend</h3>
+  <ul>
+    <li><strong>Next.js API Routes</strong> — Lightweight endpoints for CRUD over SKU data.</li>
+  </ul>
+
+  <h3>🗄️ Database</h3>
+  <ul>
+    <li><strong>Prisma ORM</strong> — Type-safe queries and migrations.</li>
+    <li><strong>SQLite (development)</strong> — Simple file-based DB (<code>dev.db</code>).</li>
+    <li><strong>PostgreSQL/MySQL (production)</strong> — Swap via <code>DATABASE_URL</code> and run Prisma migrations.</li>
+  </ul>
+
+  <p><em>Tip:</em> Swap SQLite for PostgreSQL/MySQL in production by changing <code>DATABASE_URL</code> and running Prisma migrations.</p>
+</section>
+
 
 
 
