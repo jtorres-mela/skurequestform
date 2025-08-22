@@ -13,43 +13,42 @@ export default async function Dashboard(
   const qParam = Array.isArray(sp.q) ? sp.q[0] : sp.q;
   const q = (qParam ?? "").trim();
 
-  const requests = await prisma.request.findMany({
-    where: q
-      ? {
-          OR: [
-            { requesterName:  { contains: q, mode: "insensitive" } },
-            { requesterEmail: { contains: q, mode: "insensitive" } },
-            { notes:          { contains: q, mode: "insensitive" } },
-            {
-              submissions: {
-                some: {
-                  products: {
-                    some: {
-                      OR: [
-                        { sku:         { contains: q, mode: "insensitive" } },
-                        { productName: { contains: q, mode: "insensitive" } },
-                      ],
-                    },
+const requests = await prisma.request.findMany({
+  where: q
+    ? {
+        OR: [
+          { requesterName:  { contains: q } },
+          { requesterEmail: { contains: q } },
+          { notes:          { contains: q } },
+          {
+            submissions: {
+              some: {
+                products: {
+                  some: {
+                    OR: [
+                      { sku:         { contains: q } },
+                      { productName: { contains: q } },
+                    ],
                   },
                 },
               },
             },
-          ],
-        }
-      : undefined,
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: {
-      submissions: {
-        orderBy: { createdAt: "desc" },
-        include: {
-          products: {
-            select: { id: true, sku: true, productName: true },
           },
-        },
+        ],
+      }
+    : undefined,
+  orderBy: { createdAt: "desc" },
+  take: 50,
+  include: {
+    submissions: {
+      orderBy: { createdAt: "desc" },
+      include: {
+        products: { select: { id: true, sku: true, productName: true } },
       },
     },
-  });
+  },
+});
+
 
   // Infer the element type from the query result
   type RequestWithSubs = typeof requests[number];

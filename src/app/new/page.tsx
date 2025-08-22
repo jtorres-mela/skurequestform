@@ -25,32 +25,59 @@ type ProductForm = {
   stamp?: string | null;
   offSaleMessage?: string | null;
 
-  
   onSaleDate?: string | null;
   offSaleDate?: string | null;
   noEndDate?: boolean;
+
   uomTitleUS?: string;
   uomValueUS?: string;
   uomTitleCA?: string;
   uomValueCA?: string;
+
   savingsUS?: string | null;
   savingsCA?: string | null;
   noSavings?: boolean;
-  recommendations?: RecommendationRow[];
 
+  recommendations?: RecommendationRow[];
   requestedCultures?: string[];
 
-  isPdpRequested?: boolean;    // ✅ renamed
+  isPdpRequested?: boolean;
   pdpWorkRequest?: string | null;
   includeTranslations?: boolean;
+
   accessories: AccessoryRow[];
   cultures: CultureRow[];
 };
+
+type ProductFormUI = ProductForm & {
+  recommendationsCsv?: string; // UI-only mirror text
+  accessoriesCsv?: string;     // UI-only mirror text
+};
+
 
 /* =============================================================================
    Constants (dropdown choices, helpers)
    - Keep these outside the component so they're not recreated every render.
 ============================================================================= */
+const EMPTY_PRODUCT: ProductFormUI = {
+  sku: "",
+  productName: "",
+  accessories: [],
+  cultures: [],
+  noEndDate: false,
+  noSavings: false,
+  includeTranslations: false,
+  isPdpRequested: false,
+  pdpWorkRequest: null,
+  savingsUS: null,
+  savingsCA: null,
+  recommendationsCsv: "",
+  accessoriesCsv: "",
+};
+
+
+
+
 const STAMP_OPTIONS = [
   "", // blank allowed
   "New!",
@@ -71,12 +98,12 @@ const OFFSALE_OPTIONS = [
 
 
 
+
+
 // Parse a simple comma-separated list into trimmed non-empty strings
-const parseCsv = (s: string) =>
-  (s || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+const parseCsv = (s: string): string[] =>
+  (s || "").split(",").map((x: string) => x.trim()).filter(Boolean);
+
 
 
 // --- Preview helpers ---
@@ -280,60 +307,68 @@ export default function Page() {
   const sp = useSearchParams();
   const router = useRouter();
 
-  // Keep this stable; useSearchParams changes when the URL changes
-const requestId = React.useMemo(() => {
-  const raw = sp.get("requestId");
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : undefined;
-}, [sp]);
-
-const fromProductId = React.useMemo(() => {
-  const raw = sp.get("fromProductId");
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : undefined;
-}, [sp]);
-
-const submissionId = React.useMemo(() => {
-  const raw = sp.get("submissionId");
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : undefined;
-}, [sp]);
-
-  // ---------------------------------------------------------------------------
-  // Top-level form state
-  // ---------------------------------------------------------------------------
+  // ---- state FIRST (so anything below can safely reference them) ----
   const [requester, setRequester] = React.useState("");
   const [note, setNote] = React.useState("");
-  const [products, setProducts] = React.useState<ProductForm[]>([
-    {
-      sku: "",
-      productName: "",
-      accessories: [],
-      cultures: [],
-      // sensible defaults
-      noEndDate: false,
-      noSavings: false,
-      includeTranslations: false,
-      isPdpRequested: false,
-      pdpWorkRequest: null,
-      savingsUS: null,
-      savingsCA: null,
-    },
-  ]);
+  const [products, setProducts] = React.useState<ProductFormUI[]>([{
+    sku: "",
+    productName: "",
+    accessories: [],
+    cultures: [],
+    // sensible defaults
+    noEndDate: false,
+    noSavings: false,
+    includeTranslations: false,
+    isPdpRequested: false,
+    pdpWorkRequest: null,
+    savingsUS: null,
+    savingsCA: null,
+    // UI mirrors
+    recommendationsCsv: "",
+    accessoriesCsv: "",
+  }]);
 
   const [status, setStatus] =
     React.useState<"idle" | "saving" | "done" | "error">("idle");
   const [err, setErr] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
 
-React.useEffect(() => {
+  // ---- now any hooks that depend on state ----
+  const updateProduct = React.useCallback(
+    (idx: number, patch: Partial<ProductFormUI>) => {
+      setProducts(prev => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+    },
+    []
+  );
+
+  // URL params (memoized)
+  const requestId = React.useMemo(() => {
+    const raw = sp.get("requestId");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  }, [sp]);
+
+  const fromProductId = React.useMemo(() => {
+    const raw = sp.get("fromProductId");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  }, [sp]);
+
+  const submissionId = React.useMemo(() => {
+    const raw = sp.get("submissionId");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  }, [sp]);
+
+  // Prefill for revision flow
+  React.useEffect(() => {
     let cancelled = false;
 
     (async () => {
       if (!fromProductId || !submissionId) return;
 
       const res = await fetch(`/api/submissions/${submissionId}/products/${fromProductId}`);
-      if (!res.ok) return; // optionally surface an error
+      if (!res.ok) return;
 
       const cur = await res.json();
       if (cancelled) return;
@@ -369,13 +404,14 @@ React.useEffect(() => {
           translatedShort: c.translatedShort ?? undefined,
           translatedLong: c.translatedLong ?? undefined,
         })),
+        // seed UI mirrors so the inputs show what’s stored
+        recommendationsCsv: (cur.recommendations ?? []).map((r: any) => r.sku).join(", "),
+        accessoriesCsv: (cur.accessories ?? []).map((a: any) => a.accessorySku ?? "").filter(Boolean).join(", "),
       }]);
     })();
 
     return () => { cancelled = true; };
   }, [fromProductId, submissionId]);
-  
-
   // ---------------------------------------------------------------------------
   // Submit to /api/submissions
   // ---------------------------------------------------------------------------
@@ -388,63 +424,80 @@ async function submit() {
       throw new Error("Missing requestId — open this page from a Request.");
     }
 
-    // build one product payload from your form state
-    const p = products[0];
-    const productPayload = {
-      sku: p.sku,
-      productName: p.productName,
-      shortDescription: p.shortDescription ?? null,
-      longDescription: p.longDescription ?? null,
-      stamp: p.stamp ?? null,
-      offSaleMessage: p.offSaleMessage ?? null,
+    const payloadProducts = products.map(
+      ({ recommendationsCsv, accessoriesCsv, ...base }: ProductFormUI) => {
+        const recs =
+          (base.recommendations && base.recommendations.length)
+            ? base.recommendations
+            : (recommendationsCsv
+                ? parseCsv(recommendationsCsv).map((sku: string) => ({ sku }))
+                : []);
 
-      onSaleDate: p.onSaleDate ?? null,
-      offSaleDate: p.noEndDate ? null : (p.offSaleDate ?? null),
+        const accs =
+          (base.accessories && base.accessories.length)
+            ? base.accessories
+            : (accessoriesCsv
+                ? parseCsv(accessoriesCsv).map((accessorySku: string) => ({ accessorySku }))
+                : []);
 
-      uomTitleUS: p.uomTitleUS ?? null,
-      uomValueUS: p.uomValueUS ?? null,
-      uomTitleCA: p.uomTitleCA ?? null,
-      uomValueCA: p.uomValueCA ?? null,
+        return {
+          sku: base.sku,
+          productName: base.productName,
+          shortDescription: base.shortDescription ?? null,
+          longDescription: base.longDescription ?? null,
+          stamp: base.stamp ?? null,
+          offSaleMessage: base.offSaleMessage ?? null,
 
-      savingsUS: p.noSavings ? null : (p.savingsUS ?? null),
-      savingsCA: p.noSavings ? null : (p.savingsCA ?? null),
-      noSavings: !!p.noSavings,
+          onSaleDate: base.onSaleDate ?? null,
+          offSaleDate: base.noEndDate ? null : (base.offSaleDate ?? null),
+          noEndDate: !!base.noEndDate,
 
-      noEndDate: !!p.noEndDate,
+          uomTitleUS: base.uomTitleUS ?? null,
+          uomValueUS: base.uomValueUS ?? null,
+          uomTitleCA: base.uomTitleCA ?? null,
+          uomValueCA: base.uomValueCA ?? null,
 
-      isPdpRequested: !!p.isPdpRequested,
-      pdpWorkRequest: p.isPdpRequested ? (p.pdpWorkRequest ?? null) : null,
+          savingsUS: base.noSavings ? null : (base.savingsUS ?? null),
+          savingsCA: base.noSavings ? null : (base.savingsCA ?? null),
+          noSavings: !!base.noSavings,
 
-      includeTranslations: !!p.includeTranslations,
-      accessories: p.accessories ?? [],
-      recommendations: p.recommendations ?? [],
-      cultures: p.includeTranslations ? (p.cultures ?? []) : [],
-    };
+          isPdpRequested: !!base.isPdpRequested,
+          pdpWorkRequest: base.isPdpRequested ? (base.pdpWorkRequest ?? null) : null,
+
+          includeTranslations: !!base.includeTranslations,
+          cultures: base.includeTranslations ? (base.cultures ?? []) : [],
+
+          recommendations: recs, // [{ sku }]
+          accessories: accs,     // [{ accessorySku, accessoryLabel? }]
+        };
+      }
+    );
 
     if (fromProductId && submissionId) {
-      // 👉 Create a REVISION for an existing product
+      // Create a revision (single SKU patch)
+      const patch = payloadProducts[0]; // assuming single SKU edit
       const res = await fetch(
         `/api/submissions/${submissionId}/products/${fromProductId}/revisions`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(productPayload),
+          body: JSON.stringify(patch),
         }
       );
       if (!res.ok) throw new Error(await res.text());
     } else {
-      // 👉 Create a NEW submission (group) with a product
-      const createPayload = {
+      // Create a new submission with one/more products
+      const submissionPayload = {
         requestId,
         note,
-        requestedCultures: [], // optional, if you still support presets
-        products: [productPayload],
+        requestedCultures: [], // if still supported
+        products: payloadProducts,
       };
 
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createPayload),
+        body: JSON.stringify(submissionPayload),
       });
       if (!res.ok) throw new Error(await res.text());
     }
@@ -456,6 +509,8 @@ async function submit() {
     setErr(e.message || "Failed to save");
   }
 }
+
+
 
 
   // ---------------------------------------------------------------------------
@@ -513,94 +568,66 @@ async function submit() {
               {/* Core details */}
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="SKU">
-                  <Input
-                    className="font-mono"
-                    value={prod.sku}
-                    onChange={(e) => {
-                      setProducts(prev =>
-  prev.map((p, idx) => idx === i ? { ...p, sku: e.target.value } : p)
-);
-                    }}
-                    required
-                  />
-                </Field>
-                <Field label="Product Name">
-                  <Input
-                    value={prod.productName}
-                    onChange={(e) => {
-                      setProducts(prev =>
-  prev.map((p, idx) => idx === i ? { ...p, productName: e.target.value } : p)
-);
-                    }}
-                    required
-                  />
-                </Field>
+  <Input
+    className="font-mono"
+    value={prod.sku}
+    onChange={(e) => updateProduct(i, { sku: e.target.value })}
+    required
+  />
+</Field>
+<Field label="Product Name">
+  <Input
+    value={prod.productName}
+    onChange={(e) => updateProduct(i, { productName: e.target.value })}
+    required
+  />
+</Field>
+
               </div>
 
-              {/* Stamp + Off-Sale Message (dropdowns) */}
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Stamp">
-                  <select
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
-                    value={prod.stamp ?? ""}
-                    onChange={(e) => {
-                      setProducts(prev =>
-  prev.map((p, idx) => idx === i ? { ...p, sku: e.target.value } : p)
-);
-                    }}
-                  >
-                    {STAMP_OPTIONS.map((o) => (
-                      <option key={o} value={o}>
-                        {o || "—"}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+             <Field label="Stamp">
+  <select
+    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
+    value={prod.stamp ?? ""}   // keep "" for “none”
+    onChange={(e) => updateProduct(i, { stamp: e.target.value || null })}
+  >
+    {/* optional empty choice */}
+    <option value="">—</option>
+    {STAMP_OPTIONS.map((o) => (
+      <option key={o} value={o}>{o}</option>
+    ))}
+  </select>
+</Field>
 
-                <Field label="Off-Sale Message">
-                  <select
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
-                    value={prod.offSaleMessage ?? ""}
-                    onChange={(e) => {
-                      setProducts(prev =>
-  prev.map((p, idx) => idx === i ? { ...p, productName: e.target.value } : p)
-);
-                    }}
-                  >
-                    {OFFSALE_OPTIONS.map((o) => (
-                      <option key={o} value={o}>
-                        {o || "—"}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
+ <Field label="Off-Sale Message">
+  <select
+    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
+    value={prod.offSaleMessage ?? ""}  // keep "" for “none”
+    onChange={(e) => updateProduct(i, { offSaleMessage: e.target.value || null })}
+  >
+    <option value="">—</option>
+    {OFFSALE_OPTIONS.map((o) => (
+      <option key={o} value={o}>{o}</option>
+    ))}
+  </select>
+</Field>
+
 
               {/* Descriptions */}
               <Field label="Short Description">
-                <Input
-                  value={prod.shortDescription ?? ""}
-                  onChange={(e) => {
-                    const cp = [...products];
-                    cp[i].shortDescription = e.target.value;
-                    setProducts(cp);
-                  }}
-                />
-              </Field>
+  <Input
+    value={prod.shortDescription ?? ""}
+    onChange={(e) => updateProduct(i, { shortDescription: e.target.value })}
+  />
+</Field>
 
-              <Field label="Long Description">
-                <Textarea
-                  rows={4}
-                  value={prod.longDescription ?? ""}
-                  onChange={(e) => {
-                    const cp = [...products];
-                    cp[i].longDescription = e.target.value;
-                    setProducts(prev =>
-  prev.map((p, idx) => idx === i ? { ...p, longDescription: e.target.value } : p)
-);
-                  }}
-                />
-              </Field>
+<Field label="Long Description">
+  <Textarea
+    rows={4}
+    value={prod.longDescription ?? ""}
+    onChange={(e) => updateProduct(i, { longDescription: e.target.value })}
+  />
+</Field>
 
               {/* If PDP requested */}
 <div className="mt-4 space-y-2">
@@ -687,7 +714,7 @@ async function submit() {
 
 
 
-             {/* Unit of Measure */}
+{/* Unit of Measure */}
 <section className="space-y-3 mt-4">
   <h3 className="text-base font-semibold">Unit of Measure</h3>
   <p className="text-xs text-gray-600">
@@ -700,7 +727,10 @@ async function submit() {
       <Input
         value={prod.uomValueUS ?? ""}
         onChange={(e) => {
-          const cp = [...products]; cp[i].uomValueUS = e.target.value; setProducts(cp);
+          const val = e.target.value;
+          setProducts(prev =>
+            prev.map((p, idx) => (idx === i ? { ...p, uomValueUS: val } : p))
+          );
         }}
         placeholder="e.g., 2 products, 8 fl oz"
       />
@@ -709,7 +739,10 @@ async function submit() {
       <Input
         value={prod.uomTitleUS ?? ""}
         onChange={(e) => {
-          const cp = [...products]; cp[i].uomTitleUS = e.target.value; setProducts(cp);
+          const val = e.target.value;
+          setProducts(prev =>
+            prev.map((p, idx) => (idx === i ? { ...p, uomTitleUS: val } : p))
+          );
         }}
         placeholder="e.g., Pack Size, Volume"
       />
@@ -722,7 +755,10 @@ async function submit() {
       <Input
         value={prod.uomValueCA ?? ""}
         onChange={(e) => {
-          const cp = [...products]; cp[i].uomValueCA = e.target.value; setProducts(cp);
+          const val = e.target.value;
+          setProducts(prev =>
+            prev.map((p, idx) => (idx === i ? { ...p, uomValueCA: val } : p))
+          );
         }}
         placeholder="e.g., 237 ml"
       />
@@ -731,13 +767,17 @@ async function submit() {
       <Input
         value={prod.uomTitleCA ?? ""}
         onChange={(e) => {
-          const cp = [...products]; cp[i].uomTitleCA = e.target.value; setProducts(cp);
+          const val = e.target.value;
+          setProducts(prev =>
+            prev.map((p, idx) => (idx === i ? { ...p, uomTitleCA: val } : p))
+          );
         }}
         placeholder="e.g., Volume"
       />
     </Field>
   </div>
 </section>
+
 
 
       {/* Savings Amount */}
@@ -815,41 +855,56 @@ async function submit() {
 
 
               {/* Recommended Products — CSV of SKUs */}
-              <Field label="Recommended Products (CSV of SKUs)">
-                <Input
-                  className="font-mono"
-                  placeholder="34038, 7904, 2654, ..."
-                  value={(prod.recommendations ?? [])
-                    .map((r) => r.sku)
-                    .join(", ")}
-                  onChange={(e) => {
-                    const list = parseCsv(e.target.value).map((sku) => ({ sku }));
-                    const cp = [...products];
-                    cp[i].recommendations = list;
-                    setProducts(cp);
-                  }}
-                />
-              </Field>
+{products.map((prod: ProductFormUI, i) => (
+  <>
+    {/* Recommended Products — CSV of SKUs */}
+    <Field label="Recommended Products (CSV of SKUs)">
+      <Input
+        className="font-mono"
+        placeholder="34038, 7904, 2654, ..."
+        value={
+          prod.recommendationsCsv ??
+          (prod.recommendations ?? []).map((r) => r.sku).join(", ")
+        }
+        onChange={(e) => updateProduct(i, { recommendationsCsv: e.target.value })}
+        onBlur={(e) => {
+          const list = parseCsv(e.target.value).map((sku: string) => ({ sku }));
+          updateProduct(i, {
+            recommendations: list,
+            recommendationsCsv: e.target.value,
+          });
+        }}
+      />
+    </Field>
 
-              {/* Accessories — CSV of SKUs */}
-              <Field label="Accessories (CSV of SKUs)">
-                <Input
-                  className="font-mono"
-                  placeholder="12345, 67890, ..."
-                  value={(prod.accessories ?? [])
-                    .map((a) => a.accessorySku || "")
-                    .filter(Boolean)
-                    .join(", ")}
-                  onChange={(e) => {
-                    const list = parseCsv(e.target.value).map((accessorySku) => ({
-                      accessorySku,
-                    }));
-                    const cp = [...products];
-                    cp[i].accessories = list;
-                    setProducts(cp);
-                  }}
-                />
-              </Field>
+    {/* Accessories — CSV of SKUs */}
+    <Field label="Accessories (CSV of SKUs)">
+      <Input
+        className="font-mono"
+        placeholder="12345, 67890, ..."
+        value={
+          prod.accessoriesCsv ??
+          (prod.accessories ?? [])
+            .map((a) => a.accessorySku || "")
+            .filter(Boolean)
+            .join(", ")
+        }
+        onChange={(e) => updateProduct(i, { accessoriesCsv: e.target.value })}
+        onBlur={(e) => {
+          const list = parseCsv(e.target.value).map((accessorySku: string) => ({
+            accessorySku,
+          }));
+          updateProduct(i, {
+            accessories: list,
+            accessoriesCsv: e.target.value,
+          });
+        }}
+      />
+    </Field>
+  </>
+))}
+
+
 
               {/* Cultures */}
               {/* Translations */}
@@ -976,9 +1031,9 @@ async function submit() {
             <Button
               variant="subtle"
               onClick={() =>
-                setProducts((p) => [
-                  ...p,
-                  { sku: "", productName: "", accessories: [], cultures: [] },
+                setProducts(prev => [
+  ...prev,
+  { ...EMPTY_PRODUCT },
                 ])
               }
             >

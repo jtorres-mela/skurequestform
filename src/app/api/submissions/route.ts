@@ -23,15 +23,13 @@ const CultureInput = z.object({
   translatedLong: strN,
 });
 
-const AccessoryInput = z.object({
-  accessorySku: strN,
-  accessoryLabel: strN,
-}).refine(a => a.accessorySku != null || a.accessoryLabel != null, {
-  message: "Accessory needs a sku or label",
-});
+const RecommendationInput = z.object({ sku: z.string().min(1) });
 
-const RecommendationInput = z.object({
-  sku: z.string().min(1),
+const AccessoryInput = z.object({
+  accessorySku: z.string().min(1).optional(),   // allow label-only or sku-only?
+  accessoryLabel: z.string().optional(),
+}).refine(a => a.accessorySku || a.accessoryLabel, {
+  message: "Accessory needs a sku or label"
 });
 
 const ProductInput = z.object({
