@@ -1,8 +1,7 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
-
-// ...existing code...
 
 type SkuRow = Record<string, unknown>;
 
@@ -13,6 +12,7 @@ interface SubmitToSmartlingPopupProps {
 }
 
 export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [authorizeJobs, setAuthorizeJobs] = useState(false);
   const [open, setOpen] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
@@ -66,9 +66,11 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
   const [submitError, setSubmitError] = useState<string | null>(null);
   const handleSubmit = async () => {
     setSubmitError(null);
+    setIsSubmitting(true);
     // Require at least one region
     if (!selectedRegions.US && !selectedRegions.CA && !selectedRegions.EU) {
       setSubmitError("Please select at least one region to submit.");
+      setIsSubmitting(false);
       return;
     }
     // Validate credentials for all selected regions
@@ -78,6 +80,7 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
       (selectedRegions.EU && (!userIdEU || !userKeyEU || !projectIdEU || targetLocalesEU.length === 0))
     ) {
       setShowCredsPrompt(true);
+      setIsSubmitting(false);
       return;
     }
     // Collect selected data
@@ -114,6 +117,8 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
       setOpen(false);
     } catch (err) {
       alert("Smartling API error: " + (err as Error).message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -275,10 +280,18 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
             </div>
             <div className="flex gap-2 mt-4">
               <button
-                className="flex-1 bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700 transition"
+                className="flex-1 bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
                 onClick={handleSubmit}
+                disabled={isSubmitting}
               >
-                Submit
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                    Submitting...
+                  </span>
+                ) : (
+                  "Submit"
+                )}
               </button>
               <button
                 className="flex-1 bg-gray-200 text-gray-800 rounded px-4 py-2 font-medium hover:bg-gray-300 transition"
