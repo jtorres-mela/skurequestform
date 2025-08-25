@@ -12,6 +12,7 @@
     "@prisma/client": "^6.14.0",
     "date-fns": "^4.1.0",
     "jszip": "^3.10.1",
+    "lucide-react": "^0.541.0",
     "next": "15.4.6",
     "prisma": "^6.13.0",
     "react": "19.1.0",

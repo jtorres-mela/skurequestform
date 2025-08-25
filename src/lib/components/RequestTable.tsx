@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Settings, PlusCircle } from "lucide-react";
 
 export type RequestRow = {
   id: number;
@@ -6,7 +7,6 @@ export type RequestRow = {
   requesterEmail: string | null;
   dueDate: string | Date | null;
   createdAt: string | Date;
-  // lightweight preview: total SKUs across submissions + a few sample SKUs
   skuCount: number;
   sampleProducts: { id: number; sku: string; productName: string }[];
 };
@@ -32,7 +32,7 @@ export default function RequestTable({ requests }: { requests: RequestRow[] }) {
             <th className="p-3 text-left">Includes</th>
             <th className="p-3 text-left">Due</th>
             <th className="p-3 text-left">Created</th>
-            <th className="p-3 text-left">Manage</th>
+            <th className="p-3 text-left">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -60,18 +60,18 @@ export default function RequestTable({ requests }: { requests: RequestRow[] }) {
                 {r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "—"}
               </td>
               <td className="p-3">{new Date(r.createdAt).toLocaleString()}</td>
-              <td className="p-3 space-x-3">
+              <td className="p-3 space-x-4 flex items-center">
                 <Link
                   href={`/request/${r.id}`}
-                  className="text-blue-600 hover:underline"
+                  className="inline-flex items-center text-blue-600 hover:underline"
                 >
-                  Manage
+                  <Settings className="w-4 h-4 mr-1" /> Manage
                 </Link>
                 <Link
                   href={`/new?requestId=${r.id}`}
-                  className="text-blue-600 hover:underline"
+                  className="inline-flex items-center text-green-600 hover:underline"
                 >
-                  + Add SKU
+                  <PlusCircle className="w-4 h-4 mr-1" /> Add SKU
                 </Link>
               </td>
             </tr>
