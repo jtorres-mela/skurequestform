@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 export async function POST(req) {
   try {
     console.log("[Smartling API] POST /api/smartling-job called");
@@ -8,7 +9,7 @@ export async function POST(req) {
     } catch (parseErr) {
       return NextResponse.json({ error: "Failed to parse JSON body", details: String(parseErr) }, { status: 400 });
     }
-  const { selectedData, jobTitle, selectedRegions, userIdUS, userKeyUS, projectIdUS, userIdCA, userKeyCA, projectIdCA, userIdEU, userKeyEU, projectIdEU, targetLocalesEU, authorizeJobs } = body;
+  const { selectedData, jobTitle, selectedRegions, userIdUS, userKeyUS, projectIdUS, userIdCA, userKeyCA, projectIdCA, userIdEU, userKeyEU, projectIdEU, targetLocalesEU, authorizeJobs, productId } = body;
     if (!selectedData || typeof selectedData !== 'object') {
       return NextResponse.json({ error: "selectedData missing or not an object" }, { status: 400 });
     }
@@ -20,7 +21,9 @@ export async function POST(req) {
     }
     const stringsPayload = { strings: selectedStrings };
 
-    const results = {};
+  const results = {};
+  // Track job UIDs by region
+  const jobUids = {};
 
     // US
     if (selectedRegions && selectedRegions.US) {
@@ -87,7 +90,8 @@ export async function POST(req) {
             throw new Error("Failed to authorize US job: " + errorText);
           }
         }
-        results.US = { success: true, jobUid: jobUidUS };
+  results.US = { success: true, jobUid: jobUidUS };
+  jobUids.US = jobUidUS;
       } catch (err) {
         results.US = { success: false, error: err instanceof Error ? err.message : String(err) };
       }
@@ -158,7 +162,8 @@ export async function POST(req) {
             throw new Error("Failed to authorize CA job: " + errorText);
           }
         }
-        results.CA = { success: true, jobUid: jobUidCA };
+  results.CA = { success: true, jobUid: jobUidCA };
+  jobUids.CA = jobUidCA;
       } catch (err) {
         results.CA = { success: false, error: err instanceof Error ? err.message : String(err) };
       }
@@ -229,12 +234,25 @@ export async function POST(req) {
             throw new Error("Failed to authorize EU job: " + errorText);
           }
         }
-        results.EU = { success: true, jobUid: jobUidEU };
+  results.EU = { success: true, jobUid: jobUidEU };
+  jobUids.EU = jobUidEU;
       } catch (err) {
         results.EU = { success: false, error: err instanceof Error ? err.message : String(err) };
       }
     }
 
+    // Save jobUids to SubmissionProduct if we have at least one job created and have productId
+    if ((jobUids.US || jobUids.CA || jobUids.EU) && productId) {
+      try {
+        const updated = await prisma.submissionProduct.update({
+          where: { id: Number(productId) },
+          data: { smartlingJobUids: jobUids }
+        });
+        results.dbUpdate = { id: updated.id };
+      } catch (dbErr) {
+        results.dbUpdate = { error: dbErr instanceof Error ? dbErr.message : String(dbErr) };
+      }
+    }
     return NextResponse.json(results);
   } catch (err) {
     let message = "Unknown error";

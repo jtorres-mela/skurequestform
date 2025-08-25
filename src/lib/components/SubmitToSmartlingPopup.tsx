@@ -108,7 +108,8 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
           userKeyEU,
           projectIdEU,
           targetLocalesEU,
-          authorizeJobs
+          authorizeJobs,
+          productId: sku.id
         }),
       });
       const result = await res.json();

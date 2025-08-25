@@ -97,6 +97,9 @@ model SubmissionProduct {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  // Smartling job tracking
+  smartlingJobUids       Json?
+
   // relations
   submission            Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   accessories           SubmissionProductAccessory[]

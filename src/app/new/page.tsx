@@ -567,11 +567,14 @@ async function submit() {
 
               {/* Core details */}
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="SKU">
+                <Field label="SKU Number">
   <Input
+    type="number"
+    inputMode="numeric"
+    pattern="[0-9]*"
     className="font-mono"
     value={prod.sku}
-    onChange={(e) => updateProduct(i, { sku: e.target.value })}
+    onChange={(e) => updateProduct(i, { sku: e.target.value.replace(/[^0-9]/g, "") })}
     required
   />
 </Field>
