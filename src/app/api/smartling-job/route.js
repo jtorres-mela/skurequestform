@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
-import {
-  SMARTLING_PROJECT_ID,
-  SMARTLING_USER_ID,
-  SMARTLING_USER_KEY,
-} from "@/lib/smartling-credentials";
-
 export async function POST(req) {
   try {
-    const { selectedData, jobTitle } = await req.json();
+    console.log("[Smartling API] POST /api/smartling-job called");
+    if (!req) {
+      return NextResponse.json({ error: "No request object received." }, { status: 400 });
+    }
+    const body = await req.json();
+    const { selectedData, jobTitle } = body;
+    // Require credentials from request only
+    const SMARTLING_USER_ID = body.userId;
+    const SMARTLING_USER_KEY = body.userKey;
+    const SMARTLING_PROJECT_ID = body.projectId;
+    if (!SMARTLING_USER_ID || !SMARTLING_USER_KEY || !SMARTLING_PROJECT_ID) {
+      return NextResponse.json({ error: "Missing Smartling credentials. Please provide User ID, User Key, and Project ID." }, { status: 400 });
+    }
 
     // 1. Authenticate and get access token
     const authResp = await fetch("https://api.smartling.com/auth-api/v2/authenticate", {
@@ -77,6 +83,13 @@ export async function POST(req) {
 
     return NextResponse.json({ success: true, jobUid });
   } catch (err) {
-    return NextResponse.json({ error: err.message || "Unknown error" }, { status: 500 });
+    // Always return a JSON error response
+    let message = "Unknown error";
+    if (err && typeof err === "object" && "message" in err) {
+      message = err.message;
+    } else if (typeof err === "string") {
+      message = err;
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
