@@ -1,6 +1,7 @@
 // src/app/request/[id]/page.tsx
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import SubmitToSmartlingPopup from "@/lib/components/SubmitToSmartlingPopup";
 
 export default async function ManageRequest({
   params,
@@ -45,6 +46,7 @@ export default async function ManageRequest({
     id: number;                // product id (row key)
     sku: string;
     productName: string;
+    shortDescription: string;
     version: number;
     isCurrent: boolean;
 
@@ -67,6 +69,7 @@ export default async function ManageRequest({
       id: p.id,
       sku: p.sku,
       productName: p.productName,
+      shortDescription: p.shortDescription ?? "",
       version: p.version,
       isCurrent: p.isCurrent,
 
@@ -176,6 +179,7 @@ export default async function ManageRequest({
                         >
                           View History
                         </Link>
+                        <SubmitToSmartlingPopup sku={r} />
                       </div>
                     </td>
                   </tr>
