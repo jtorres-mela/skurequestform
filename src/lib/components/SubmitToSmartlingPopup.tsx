@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 
+// ...existing code...
+
 type SkuRow = Record<string, unknown>;
 
 type SelectedState = Record<string, boolean>;
@@ -11,16 +13,25 @@ interface SubmitToSmartlingPopupProps {
 }
 
 export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupProps) {
+  const [authorizeJobs, setAuthorizeJobs] = useState(false);
   const [open, setOpen] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   // Smartling credentials state
   const [showCredsPrompt, setShowCredsPrompt] = useState(false);
+  const [selectedRegions, setSelectedRegions] = useState<{US: boolean, CA: boolean, EU: boolean}>({US: false, CA: false, EU: false});
+  // US
   const [userIdUS, setUserIdUS] = useState("");
   const [userKeyUS, setUserKeyUS] = useState("");
   const [projectIdUS, setProjectIdUS] = useState("");
+  // CA
   const [userIdCA, setUserIdCA] = useState("");
   const [userKeyCA, setUserKeyCA] = useState("");
   const [projectIdCA, setProjectIdCA] = useState("");
+  // EU
+  const [userIdEU, setUserIdEU] = useState("");
+  const [userKeyEU, setUserKeyEU] = useState("");
+  const [projectIdEU, setProjectIdEU] = useState("");
+  const [targetLocalesEU, setTargetLocalesEU] = useState<string[]>([]);
 
   // Load credentials from localStorage on mount
   useEffect(() => {
@@ -31,6 +42,9 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
       setUserIdCA(localStorage.getItem("smartlingUserIdCA") || "");
       setUserKeyCA(localStorage.getItem("smartlingUserKeyCA") || "");
       setProjectIdCA(localStorage.getItem("smartlingProjectIdCA") || "");
+      setUserIdEU(localStorage.getItem("smartlingUserIdEU") || "");
+      setUserKeyEU(localStorage.getItem("smartlingUserKeyEU") || "");
+      setProjectIdEU(localStorage.getItem("smartlingProjectIdEU") || "");
     }
   }, []);
   // Exclude these fields from the popup
@@ -49,9 +63,20 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
     setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const handleSubmit = async () => {
-    // If credentials are missing, prompt for them
-    if (!userIdUS || !userKeyUS || !projectIdUS || !userIdCA || !userKeyCA || !projectIdCA) {
+    setSubmitError(null);
+    // Require at least one region
+    if (!selectedRegions.US && !selectedRegions.CA && !selectedRegions.EU) {
+      setSubmitError("Please select at least one region to submit.");
+      return;
+    }
+    // Validate credentials for all selected regions
+    if (
+      (selectedRegions.US && (!userIdUS || !userKeyUS || !projectIdUS)) ||
+      (selectedRegions.CA && (!userIdCA || !userKeyCA || !projectIdCA)) ||
+      (selectedRegions.EU && (!userIdEU || !userKeyEU || !projectIdEU || targetLocalesEU.length === 0))
+    ) {
       setShowCredsPrompt(true);
       return;
     }
@@ -66,21 +91,30 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
         body: JSON.stringify({
           selectedData,
           jobTitle,
+          selectedRegions,
+          // US
           userIdUS,
           userKeyUS,
           projectIdUS,
+          // CA
           userIdCA,
           userKeyCA,
-          projectIdCA
+          projectIdCA,
+          // EU
+          userIdEU,
+          userKeyEU,
+          projectIdEU,
+          targetLocalesEU,
+          authorizeJobs
         }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Unknown error");
-      alert("Smartling jobs created and strings added successfully! US Job UID: " + result.jobUidUS + ", CA Job UID: " + result.jobUidCA);
+      alert("Smartling jobs created and strings added successfully! " + JSON.stringify(result));
+      setOpen(false);
     } catch (err) {
       alert("Smartling API error: " + (err as Error).message);
     }
-    setOpen(false);
   };
 
   // Save credentials and continue
@@ -92,14 +126,16 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
       localStorage.setItem("smartlingUserIdCA", userIdCA);
       localStorage.setItem("smartlingUserKeyCA", userKeyCA);
       localStorage.setItem("smartlingProjectIdCA", projectIdCA);
+      localStorage.setItem("smartlingUserIdEU", userIdEU);
+      localStorage.setItem("smartlingUserKeyEU", userKeyEU);
+      localStorage.setItem("smartlingProjectIdEU", projectIdEU);
     }
     setShowCredsPrompt(false);
-    handleSubmit();
   };
   return (
     <>
       <button
-        className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+        className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50 cursor-pointer"
         onClick={() => setOpen(true)}
         type="button"
       >
@@ -110,69 +146,43 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
             <div className="bg-white rounded-xl shadow-lg p-8 min-w-[320px] relative">
               <h3 className="text-lg font-semibold mb-4">Enter Smartling Credentials</h3>
+              <p className="mb-4 text-xs text-gray-600">
+                Need help?&nbsp;
+                <a
+                  href="https://help.smartling.com/hc/en-us/articles/115004187694-API-Tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline hover:text-blue-800"
+                >
+                  How to generate your Smartling API keys
+                </a>
+              </p>
               <div className="mb-4">
+                {/* US Credentials */}
                 <label className="block mb-2 text-xs font-semibold text-gray-700">US User ID</label>
-                <input
-                  type="text"
-                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling US User ID"
-                  value={userIdUS}
-                  onChange={e => setUserIdUS(e.target.value)}
-                />
+                <input type="text" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling US User ID" value={userIdUS} onChange={e => setUserIdUS(e.target.value)} />
                 <label className="block mb-2 text-xs font-semibold text-gray-700">US User Key</label>
-                <input
-                  type="password"
-                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling US User Key"
-                  value={userKeyUS}
-                  onChange={e => setUserKeyUS(e.target.value)}
-                />
+                <input type="password" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling US User Key" value={userKeyUS} onChange={e => setUserKeyUS(e.target.value)} />
                 <label className="block mb-2 text-xs font-semibold text-gray-700">US Project ID</label>
-                <input
-                  type="text"
-                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling US Project ID"
-                  value={projectIdUS}
-                  onChange={e => setProjectIdUS(e.target.value)}
-                />
+                <input type="text" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling US Project ID" value={projectIdUS} onChange={e => setProjectIdUS(e.target.value)} />
+                {/* CA Credentials */}
                 <label className="block mb-2 text-xs font-semibold text-gray-700">CA User ID</label>
-                <input
-                  type="text"
-                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling CA User ID"
-                  value={userIdCA}
-                  onChange={e => setUserIdCA(e.target.value)}
-                />
+                <input type="text" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling CA User ID" value={userIdCA} onChange={e => setUserIdCA(e.target.value)} />
                 <label className="block mb-2 text-xs font-semibold text-gray-700">CA User Key</label>
-                <input
-                  type="password"
-                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling CA User Key"
-                  value={userKeyCA}
-                  onChange={e => setUserKeyCA(e.target.value)}
-                />
+                <input type="password" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling CA User Key" value={userKeyCA} onChange={e => setUserKeyCA(e.target.value)} />
                 <label className="block mb-2 text-xs font-semibold text-gray-700">CA Project ID</label>
-                <input
-                  type="text"
-                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling CA Project ID"
-                  value={projectIdCA}
-                  onChange={e => setProjectIdCA(e.target.value)}
-                />
+                <input type="text" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling CA Project ID" value={projectIdCA} onChange={e => setProjectIdCA(e.target.value)} />
+                {/* EU Credentials */}
+                <label className="block mb-2 text-xs font-semibold text-gray-700">EU User ID</label>
+                <input type="text" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling EU User ID" value={userIdEU} onChange={e => setUserIdEU(e.target.value)} />
+                <label className="block mb-2 text-xs font-semibold text-gray-700">EU User Key</label>
+                <input type="password" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling EU User Key" value={userKeyEU} onChange={e => setUserKeyEU(e.target.value)} />
+                <label className="block mb-2 text-xs font-semibold text-gray-700">EU Project ID</label>
+                <input type="text" className="mb-4 w-full rounded border px-2 py-1 text-xs" placeholder="Smartling EU Project ID" value={projectIdEU} onChange={e => setProjectIdEU(e.target.value)} />
               </div>
               <div className="flex gap-2">
-                <button
-                  className="flex-1 bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700 transition"
-                  onClick={handleSaveCreds}
-                >
-                  Save & Continue
-                </button>
-                <button
-                  className="flex-1 bg-gray-200 text-gray-800 rounded px-4 py-2 font-medium hover:bg-gray-300 transition"
-                  onClick={() => { setShowCredsPrompt(false); setOpen(false); }}
-                >
-                  Cancel
-                </button>
+                <button className="flex-1 bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700 transition" onClick={handleSaveCreds}>Save & Continue</button>
+                <button className="flex-1 bg-gray-200 text-gray-800 rounded px-4 py-2 font-medium hover:bg-gray-300 transition" onClick={() => { setShowCredsPrompt(false); setOpen(false); }}>Cancel</button>
               </div>
             </div>
           </div>
@@ -186,8 +196,45 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
             >
               <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
-            <h3 className="text-lg font-semibold mb-4">Submit to Smartling</h3>
+            <h3 className="text-lg font-semibold mb-2">Submit to Smartling</h3>
             <div className="mb-4">
+              <button
+                type="button"
+                className="text-xs text-blue-600 underline hover:text-blue-800 cursor-pointer"
+                onClick={() => setShowCredsPrompt(true)}
+              >
+                Edit Smartling Credentials
+              </button>
+            </div>
+            <div>
+              <label className="block mb-2 text-xs font-semibold text-gray-700">Select Regions</label>
+              <div className="mb-4 flex flex-col gap-1">
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={selectedRegions.US} onChange={e => setSelectedRegions(r => ({...r, US: e.target.checked}))} /> US (enUS → esUS)
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={selectedRegions.CA} onChange={e => setSelectedRegions(r => ({...r, CA: e.target.checked}))} /> CA (enCA → frCA)
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={selectedRegions.EU} onChange={e => setSelectedRegions(r => ({...r, EU: e.target.checked}))} /> EU (enIE → nlNL, deDE, ltLT, plPL)
+                </label>
+              </div>
+              {selectedRegions.EU && (
+                <div className="mb-4">
+                  <label className="block mb-2 text-xs font-semibold text-gray-700">Target Locales (EU)</label>
+                  <div className="flex flex-col gap-1">
+                    {['nl-NL','de-DE','lt-LT','pl-PL'].map(loc => (
+                      <label key={loc} className="inline-flex items-center gap-2">
+                        <input type="checkbox" checked={targetLocalesEU.includes(loc)} onChange={e => {
+                          setTargetLocalesEU(prev => e.target.checked ? [...prev, loc] : prev.filter(l => l !== loc));
+                        }} />
+                        {loc}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {submitError && <div className="text-red-600 text-xs mb-2">{submitError}</div>}
               <label className="block mb-2 text-xs font-semibold text-gray-700">Smartling Job Title</label>
               <input
                 type="text"
@@ -216,7 +263,17 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-2">
+            <div className="mb-4">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={authorizeJobs}
+                  onChange={e => setAuthorizeJobs(e.target.checked)}
+                />
+                Authorize Job(s)
+              </label>
+            </div>
+            <div className="flex gap-2 mt-4">
               <button
                 className="flex-1 bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700 transition"
                 onClick={handleSubmit}
