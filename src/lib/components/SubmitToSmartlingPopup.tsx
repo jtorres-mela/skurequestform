@@ -15,16 +15,22 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
   const [jobTitle, setJobTitle] = useState("");
   // Smartling credentials state
   const [showCredsPrompt, setShowCredsPrompt] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [userKey, setUserKey] = useState("");
-  const [projectId, setProjectId] = useState("");
+  const [userIdUS, setUserIdUS] = useState("");
+  const [userKeyUS, setUserKeyUS] = useState("");
+  const [projectIdUS, setProjectIdUS] = useState("");
+  const [userIdCA, setUserIdCA] = useState("");
+  const [userKeyCA, setUserKeyCA] = useState("");
+  const [projectIdCA, setProjectIdCA] = useState("");
 
   // Load credentials from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setUserId(localStorage.getItem("smartlingUserId") || "");
-      setUserKey(localStorage.getItem("smartlingUserKey") || "");
-      setProjectId(localStorage.getItem("smartlingProjectId") || "");
+      setUserIdUS(localStorage.getItem("smartlingUserIdUS") || "");
+      setUserKeyUS(localStorage.getItem("smartlingUserKeyUS") || "");
+      setProjectIdUS(localStorage.getItem("smartlingProjectIdUS") || "");
+      setUserIdCA(localStorage.getItem("smartlingUserIdCA") || "");
+      setUserKeyCA(localStorage.getItem("smartlingUserKeyCA") || "");
+      setProjectIdCA(localStorage.getItem("smartlingProjectIdCA") || "");
     }
   }, []);
   // Exclude these fields from the popup
@@ -45,7 +51,7 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
 
   const handleSubmit = async () => {
     // If credentials are missing, prompt for them
-    if (!userId || !userKey || !projectId) {
+    if (!userIdUS || !userKeyUS || !projectIdUS || !userIdCA || !userKeyCA || !projectIdCA) {
       setShowCredsPrompt(true);
       return;
     }
@@ -57,11 +63,20 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
       const res = await fetch("/api/smartling-job", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedData, jobTitle, userId, userKey, projectId }),
+        body: JSON.stringify({
+          selectedData,
+          jobTitle,
+          userIdUS,
+          userKeyUS,
+          projectIdUS,
+          userIdCA,
+          userKeyCA,
+          projectIdCA
+        }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Unknown error");
-      alert("Smartling job created and strings added successfully! Job UID: " + result.jobUid);
+      alert("Smartling jobs created and strings added successfully! US Job UID: " + result.jobUidUS + ", CA Job UID: " + result.jobUidCA);
     } catch (err) {
       alert("Smartling API error: " + (err as Error).message);
     }
@@ -71,9 +86,12 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
   // Save credentials and continue
   const handleSaveCreds = () => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("smartlingUserId", userId);
-      localStorage.setItem("smartlingUserKey", userKey);
-      localStorage.setItem("smartlingProjectId", projectId);
+      localStorage.setItem("smartlingUserIdUS", userIdUS);
+      localStorage.setItem("smartlingUserKeyUS", userKeyUS);
+      localStorage.setItem("smartlingProjectIdUS", projectIdUS);
+      localStorage.setItem("smartlingUserIdCA", userIdCA);
+      localStorage.setItem("smartlingUserKeyCA", userKeyCA);
+      localStorage.setItem("smartlingProjectIdCA", projectIdCA);
     }
     setShowCredsPrompt(false);
     handleSubmit();
@@ -93,29 +111,53 @@ export default function SubmitToSmartlingPopup({ sku }: SubmitToSmartlingPopupPr
             <div className="bg-white rounded-xl shadow-lg p-8 min-w-[320px] relative">
               <h3 className="text-lg font-semibold mb-4">Enter Smartling Credentials</h3>
               <div className="mb-4">
-                <label className="block mb-2 text-xs font-semibold text-gray-700">User ID</label>
+                <label className="block mb-2 text-xs font-semibold text-gray-700">US User ID</label>
                 <input
                   type="text"
                   className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling User ID"
-                  value={userId}
-                  onChange={e => setUserId(e.target.value)}
+                  placeholder="Smartling US User ID"
+                  value={userIdUS}
+                  onChange={e => setUserIdUS(e.target.value)}
                 />
-                <label className="block mb-2 text-xs font-semibold text-gray-700">User Key</label>
+                <label className="block mb-2 text-xs font-semibold text-gray-700">US User Key</label>
                 <input
                   type="password"
                   className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling User Key"
-                  value={userKey}
-                  onChange={e => setUserKey(e.target.value)}
+                  placeholder="Smartling US User Key"
+                  value={userKeyUS}
+                  onChange={e => setUserKeyUS(e.target.value)}
                 />
-                <label className="block mb-2 text-xs font-semibold text-gray-700">Project ID</label>
+                <label className="block mb-2 text-xs font-semibold text-gray-700">US Project ID</label>
                 <input
                   type="text"
                   className="mb-4 w-full rounded border px-2 py-1 text-xs"
-                  placeholder="Smartling Project ID"
-                  value={projectId}
-                  onChange={e => setProjectId(e.target.value)}
+                  placeholder="Smartling US Project ID"
+                  value={projectIdUS}
+                  onChange={e => setProjectIdUS(e.target.value)}
+                />
+                <label className="block mb-2 text-xs font-semibold text-gray-700">CA User ID</label>
+                <input
+                  type="text"
+                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
+                  placeholder="Smartling CA User ID"
+                  value={userIdCA}
+                  onChange={e => setUserIdCA(e.target.value)}
+                />
+                <label className="block mb-2 text-xs font-semibold text-gray-700">CA User Key</label>
+                <input
+                  type="password"
+                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
+                  placeholder="Smartling CA User Key"
+                  value={userKeyCA}
+                  onChange={e => setUserKeyCA(e.target.value)}
+                />
+                <label className="block mb-2 text-xs font-semibold text-gray-700">CA Project ID</label>
+                <input
+                  type="text"
+                  className="mb-4 w-full rounded border px-2 py-1 text-xs"
+                  placeholder="Smartling CA Project ID"
+                  value={projectIdCA}
+                  onChange={e => setProjectIdCA(e.target.value)}
                 />
               </div>
               <div className="flex gap-2">
