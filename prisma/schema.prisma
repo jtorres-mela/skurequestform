@@ -9,27 +9,47 @@ generator client {
 }
 
 /* ----------------------------
+   Enums (new)
+   ---------------------------- */
+enum RequestType {
+  OPEN_STOCK
+  INCREMENTAL_PROMO
+  COUPON_PROMO
+}
+
+enum PromotionKind {
+  INCREMENTAL_PROMO
+  COUPON_PROMO
+}
+
+/* ----------------------------
    Requests (parent “work item”)
    ---------------------------- */
 model Request {
-  id             Int       @id @default(autoincrement())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id             Int          @id @default(autoincrement())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   requesterName  String?
   requesterEmail String?
   dueDate        DateTime?
-  adoId          String?   // Azure DevOps Work Request number (optional)
-  userStory      String?   // ADO User Story number (optional)
+  adoId          String?      // Azure DevOps Work Request number (optional)
+  userStory      String?      // ADO User Story number (optional)
   notes          String?
+
+  // NEW: Type of request (default keeps old data valid)
+  type           RequestType  @default(OPEN_STOCK)
 
   // children
   submissions    Submission[]
+  promoUploads   PromotionUpload[]   // NEW
 
   @@index([createdAt])
+  @@index([type])                    // helpful for filtering by type
 }
 
 /* ----------------------------
    Submissions (group of SKUs)
+   (unchanged)
    ---------------------------- */
 model Submission {
   id        Int       @id @default(autoincrement())
@@ -51,13 +71,14 @@ model Submission {
 
 /* ---------------------------------
    Individual SKU row in a submission
+   (unchanged)
    --------------------------------- */
 model SubmissionProduct {
   id                    Int       @id @default(autoincrement())
   submissionId          Int
 
   // Versioning
-  sku                   String            // ← keep only ONE sku field
+  sku                   String
   version               Int       @default(1)   // 1 = original, 2+ = revisions
   isCurrent             Boolean   @default(true)
 
@@ -98,7 +119,7 @@ model SubmissionProduct {
   updatedAt             DateTime  @updatedAt
 
   // Smartling job tracking
-  smartlingJobUids       Json?
+  smartlingJobUids      Json?
 
   // relations
   submission            Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -108,9 +129,7 @@ model SubmissionProduct {
 
   @@index([submissionId])
   @@index([sku])
-  // Unique per revision instance:
   @@unique([submissionId, sku, version])
-  // Ensure only one current:
   @@unique([submissionId, sku, isCurrent])
 }
 
@@ -148,4 +167,63 @@ model SubmissionProductCulture {
   @@unique([productId, cultureCode])
   @@index([cultureCode])
   @@index([productId])
+}
+
+/* ----------------------------
+   Promotion uploads
+   ---------------------------- */
+model PromotionUpload {
+  id          Int            @id @default(autoincrement())
+  requestId   Int
+  kind        PromotionKind
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String
+  uploadedAt  DateTime       @default(now())
+
+   lines       PromotionLine[]
+
+  request     Request        @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([kind])
+  @@index([uploadedAt])
+}
+
+/* ----------------------------
+   Promotion line items
+   ---------------------------- */
+model PromotionLine {
+  id              Int            @id @default(autoincrement())
+  uploadId        Int
+  type            PromotionKind  // INCREMENTAL_PROMO | COUPON_PROMO
+  sku             String
+  culture         String
+
+  // Localized text from the sheet (per-culture rows)
+  productName     String?
+  shortDescription String?
+
+  // Coupon-only fields (keep as String for flexibility; you can switch to Decimal later)
+  savingsAmount   String?        // or Decimal? if you want strict numeric
+  couponCode      String?
+
+  // New free-form fields you wanted to keep as-is
+  quantityRaw     String?        // e.g. "2", "1-2", "3+1"
+  configurable    String?        // e.g. FSKU id
+  bomRaw          String?        // e.g. "3 x F590(42994, ...); 1 x F1301(...); ..."
+
+  // Useful for traceability back to the spreadsheet row
+  uploadedRow     Int?
+
+  createdAt       DateTime       @default(now())
+
+  // relation
+upload            PromotionUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@index([uploadId])
+  @@index([sku])
+  @@index([culture])
+  @@index([type])
 }

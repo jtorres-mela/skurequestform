@@ -13,48 +13,73 @@ export default async function Dashboard(
   const qParam = Array.isArray(sp.q) ? sp.q[0] : sp.q;
   const q = (qParam ?? "").trim();
 
-const requests = await prisma.request.findMany({
-  where: q
-    ? {
-        OR: [
-          { requesterName:  { contains: q } },
-          { requesterEmail: { contains: q } },
-          { notes:          { contains: q } },
-          {
-            submissions: {
-              some: {
-                products: {
-                  some: {
-                    OR: [
-                      { sku:         { contains: q } },
-                      { productName: { contains: q } },
-                    ],
+  const requests = await prisma.request.findMany({
+    where: q
+      ? {
+          OR: [
+            { requesterName:  { contains: q } },
+            { requesterEmail: { contains: q } },
+            { notes:          { contains: q } },
+            {
+              submissions: {
+                some: {
+                  products: {
+                    some: {
+                      OR: [
+                        { sku:         { contains: q } },
+                        { productName: { contains: q } },
+                      ],
+                    },
                   },
                 },
               },
             },
-          },
-        ],
-      }
-    : undefined,
-  orderBy: { createdAt: "desc" },
-  take: 50,
-  include: {
-    submissions: {
-      orderBy: { createdAt: "desc" },
-      include: {
-        products: { select: { id: true, sku: true, productName: true } },
+          ],
+        }
+      : undefined,
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      // For SKU count + samples
+      submissions: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          products: { select: { id: true, sku: true, productName: true } },
+        },
+      },
+      // Promo uploads (recent first) + line counts if you have PromotionLine
+      promoUploads: {
+        orderBy: { uploadedAt: "desc" },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          uploadedAt: true,
+          _count: { select: { lines: true } }, // OK even if you later remove PromotionLine
+        },
+        take: 3,
+      },
+      // Root-level counts
+      _count: {
+        select: {
+          promoUploads: true,
+        },
       },
     },
-  },
-});
+  });
 
-
-  // Infer the element type from the query result
+  // Infer element type
   type RequestWithSubs = typeof requests[number];
 
   const rows: RequestRow[] = requests.map((r: RequestWithSubs) => {
-    const allProducts = r.submissions.flatMap((s: RequestWithSubs["submissions"][number]) => s.products);
+    const allProducts = r.submissions.flatMap(
+      (s: RequestWithSubs["submissions"][number]) => s.products
+    );
+
+    const recent = r.promoUploads ?? [];
+    const promoUploadCount = r._count?.promoUploads ?? 0;
+    const promoRowCount = recent.reduce((sum, u) => sum + (u._count?.lines ?? 0), 0);
+    const lastPromoAt = recent[0]?.uploadedAt ?? null;
 
     return {
       id: r.id,
@@ -62,8 +87,22 @@ const requests = await prisma.request.findMany({
       requesterEmail: r.requesterEmail,
       dueDate: r.dueDate,
       createdAt: r.createdAt,
+
+      // SKUs
       skuCount: allProducts.length,
       sampleProducts: allProducts.slice(0, 5),
+
+      // Promos (all optional in RequestTable)
+      promoUploadCount,
+      promoRowCount,
+      lastPromoAt,
+      promoSummaries: recent.map((u) => ({
+        id: u.id,
+        kind: u.kind as "INCREMENTAL_PROMO" | "COUPON_PROMO",
+        uploadedAt: u.uploadedAt,
+        rows: u._count?.lines ?? undefined,
+        fileName: u.fileName,
+      })),
     };
   });
 

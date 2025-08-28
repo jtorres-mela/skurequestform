@@ -2,6 +2,16 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SubmitToSmartlingPopup from "@/lib/components/SubmitToSmartlingPopup";
+import ManageRequestActions from "@/lib/components/ManageRequestActions";
+
+// tiny helper, server-safe
+function formatBytes(n: number | null | undefined) {
+  if (!n || n <= 0) return "—";
+  const kb = 1024, mb = kb * 1024;
+  if (n >= mb) return `${(n / mb).toFixed(1)} MB`;
+  if (n >= kb) return `${(n / kb).toFixed(0)} KB`;
+  return `${n} B`;
+}
 
 export default async function ManageRequest({
   params,
@@ -31,6 +41,19 @@ export default async function ManageRequest({
           },
         },
       },
+      // use select so _count is allowed
+      promoUploads: {
+        orderBy: { uploadedAt: "desc" },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          mimeType: true,
+          sizeBytes: true,
+          uploadedAt: true,
+          _count: { select: { lines: true } },
+        },
+      },
     },
   });
 
@@ -43,7 +66,7 @@ export default async function ManageRequest({
 
   // Strong type for table rows
   type Row = {
-    id: number;                // product id (row key)
+    id: number; // product id (row key)
     sku: string;
     productName: string;
     shortDescription: string;
@@ -57,34 +80,42 @@ export default async function ManageRequest({
     onSaleDate: string;
     offSaleDate: string;
 
-    submissionId: number;      // for display
-    submissionNote: string;    // for display
-    submissionTime: string;    // for display
-    submissionIdRaw: number;   // for URLs (same as product.submissionId)
+    submissionId: number; // for display
+    submissionNote: string; // for display
+    submissionTime: string; // for display
+    submissionIdRaw: number; // for URLs (same as product.submissionId)
   };
 
   // Flatten all current products into table rows
   const rows: Row[] = req.submissions.flatMap((s: Submission) =>
-    s.products.map((p: Product): Row => ({
-      id: p.id,
-      sku: p.sku,
-      productName: p.productName,
-      shortDescription: p.shortDescription ?? "",
-      version: p.version,
-      isCurrent: p.isCurrent,
+    s.products.map(
+      (p: Product): Row => ({
+        id: p.id,
+        sku: p.sku,
+        productName: p.productName,
+        shortDescription: p.shortDescription ?? "",
+        version: p.version,
+        isCurrent: p.isCurrent,
 
-      uomUS: p.uomTitleUS && p.uomValueUS ? `${p.uomValueUS} ${p.uomTitleUS}` : "—",
-      uomCA: p.uomTitleCA && p.uomValueCA ? `${p.uomValueCA} ${p.uomTitleCA}` : "—",
-      savingsUS: p.noSavings ? "—" : (p.savingsUS || "—"),
-      savingsCA: p.noSavings ? "—" : (p.savingsCA || "—"),
-      onSaleDate: p.onSaleDate ? new Date(p.onSaleDate).toLocaleDateString() : "—",
-      offSaleDate: p.noEndDate ? "No end" : (p.offSaleDate ? new Date(p.offSaleDate).toLocaleDateString() : "—"),
+        uomUS:
+          p.uomTitleUS && p.uomValueUS ? `${p.uomValueUS} ${p.uomTitleUS}` : "—",
+        uomCA:
+          p.uomTitleCA && p.uomValueCA ? `${p.uomValueCA} ${p.uomTitleCA}` : "—",
+        savingsUS: p.noSavings ? "—" : p.savingsUS || "—",
+        savingsCA: p.noSavings ? "—" : p.savingsCA || "—",
+        onSaleDate: p.onSaleDate ? new Date(p.onSaleDate).toLocaleDateString() : "—",
+        offSaleDate: p.noEndDate
+          ? "No end"
+          : p.offSaleDate
+          ? new Date(p.offSaleDate).toLocaleDateString()
+          : "—",
 
-      submissionId: s.id,
-      submissionNote: s.note ?? "—",
-      submissionTime: new Date(s.createdAt).toLocaleString(),
-      submissionIdRaw: p.submissionId,
-    }))
+        submissionId: s.id,
+        submissionNote: s.note ?? "—",
+        submissionTime: new Date(s.createdAt).toLocaleString(),
+        submissionIdRaw: p.submissionId,
+      })
+    )
   );
 
   return (
@@ -99,25 +130,26 @@ export default async function ManageRequest({
             {req.dueDate ? ` · Due ${new Date(req.dueDate).toLocaleDateString()}` : ""}
           </p>
         </div>
-        <Link
-          href={`/new?requestId=${req.id}`}
-          className="inline-flex items-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/90"
-        >
-          + Add SKU to this Request
-        </Link>
+
+        {/* Actions (client) */}
+        <ManageRequestActions
+          requestId={req.id}
+          // If you now have Request.type and want to hide Add SKU for promo types, do:
+          // showAddSku={req.type === "OPEN_STOCK"}
+        />
       </header>
 
       {/* Notes */}
       {req.notes && (
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="font-medium mb-2">Notes</h2>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{req.notes}</p>
+          <h2 className="mb-2 font-medium">Notes</h2>
+          <p className="whitespace-pre-wrap text-sm text-gray-700">{req.notes}</p>
         </div>
       )}
 
       {/* SKUs table */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="font-medium mb-3">SKUs in this Request</h2>
+        <h2 className="mb-3 font-medium">SKUs in this Request</h2>
 
         {!rows.length ? (
           <p className="text-sm text-gray-500">
@@ -174,12 +206,77 @@ export default async function ManageRequest({
                           Add Revision
                         </Link>
                         <Link
-                          href={`/request/${req.id}/history?sku=${encodeURIComponent(r.sku)}&submissionId=${r.submissionIdRaw}`}
+                          href={`/request/${req.id}/history?sku=${encodeURIComponent(
+                            r.sku
+                          )}&submissionId=${r.submissionIdRaw}`}
                           className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
                         >
                           View History
                         </Link>
                         <SubmitToSmartlingPopup sku={r} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Promotion uploads */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium">Promotion uploads</h2>
+          <span className="text-xs text-gray-500">Latest first</span>
+        </div>
+
+        {!req.promoUploads?.length ? (
+          <p className="text-sm text-gray-500">No promotion files uploaded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-left">
+                  <th className="p-3">Type</th>
+                  <th className="p-3">File</th>
+                  <th className="p-3">Size</th>
+                  <th className="p-3">Rows</th>
+                  <th className="p-3">Uploaded</th>
+                  <th className="p-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {req.promoUploads.map((u) => (
+                  <tr key={u.id} className="border-t">
+                    <td className="p-3">
+                      <span
+                        className={
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium " +
+                          (u.kind === "COUPON_PROMO"
+                            ? "bg-rose-50 text-rose-700"
+                            : "bg-amber-50 text-amber-700")
+                        }
+                        title={u.kind}
+                      >
+                        {u.kind === "COUPON_PROMO" ? "Coupon" : "Incremental"}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-medium">{u.fileName}</div>
+                      <div className="text-xs text-gray-500">{u.mimeType || "—"}</div>
+                    </td>
+                    <td className="p-3">{formatBytes(u.sizeBytes)}</td>
+                    <td className="p-3">{u._count?.lines ?? 0}</td>
+                    <td className="p-3">{new Date(u.uploadedAt).toLocaleString()}</td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/api/requests/${req.id}/promotions/${u.id}/download`}
+                          className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                        >
+                          Download
+                        </Link>
                       </div>
                     </td>
                   </tr>
