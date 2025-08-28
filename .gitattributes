@@ -1,0 +1,2 @@
+# Exclude just the big preview stylesheet from language stats
+public/live.css linguist-vendored
