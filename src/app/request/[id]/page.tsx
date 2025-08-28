@@ -13,6 +13,15 @@ function formatBytes(n: number | null | undefined) {
   return `${n} B`;
 }
 
+// (optional) handy date helper near the top of the file
+function fmtDate(d?: string | Date | null) {
+  return d ? new Date(d).toLocaleDateString() : "—";
+}
+function fmtDateTime(d?: string | Date | null) {
+  return d ? new Date(d).toLocaleString() : "—";
+}
+
+
 export default async function ManageRequest({
   params,
 }: {
@@ -120,32 +129,75 @@ export default async function ManageRequest({
 
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-6">
-      {/* Header */}
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Manage Request #{req.id}</h1>
-          <p className="text-sm text-gray-600">
-            {req.requesterName ? `${req.requesterName} · ` : ""}
-            {req.requesterEmail || "—"}
-            {req.dueDate ? ` · Due ${new Date(req.dueDate).toLocaleDateString()}` : ""}
-          </p>
-        </div>
+  {/* Header */}
+<header className="flex items-center justify-between">
+  <h1 className="text-2xl font-semibold">Manage Request #{req.id}</h1>
+  <ManageRequestActions requestId={req.id} />
+</header>
 
-        {/* Actions (client) */}
-        <ManageRequestActions
-          requestId={req.id}
-          // If you now have Request.type and want to hide Add SKU for promo types, do:
-          // showAddSku={req.type === "OPEN_STOCK"}
-        />
-      </header>
+{/* Request details (full width) */}
+<section className="rounded-xl bg-white p-4 shadow-sm">
+  <h2 className="mb-3 font-medium">Request details</h2>
 
-      {/* Notes */}
-      {req.notes && (
-        <div className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-gray-700">{req.notes}</p>
-        </div>
-      )}
+  {/* Responsive 2–3 column grid of fields */}
+  <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+      <dt className="text-gray-500">Requester</dt>
+      <dd className="mt-0.5 text-gray-900">{req.requesterName || "—"}</dd>
+    </div>
+
+    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+      <dt className="text-gray-500">Email</dt>
+      <dd className="mt-0.5">
+        {req.requesterEmail ? (
+          <a
+            href={`mailto:${req.requesterEmail}`}
+            className="text-blue-700 hover:underline"
+          >
+            {req.requesterEmail}
+          </a>
+        ) : (
+          <span className="text-gray-900">—</span>
+        )}
+      </dd>
+    </div>
+
+    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+      <dt className="text-gray-500">Due</dt>
+      <dd className="mt-0.5 text-gray-900">{fmtDate(req.dueDate)}</dd>
+    </div>
+
+    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+      <dt className="text-gray-500">Created</dt>
+      <dd className="mt-0.5 text-gray-900">{fmtDateTime(req.createdAt)}</dd>
+    </div>
+
+    {req.adoId && (
+      <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+        <dt className="text-gray-500">ADO Work Req</dt>
+        <dd className="mt-0.5 text-gray-900">{req.adoId}</dd>
+      </div>
+    )}
+
+    {req.userStory && (
+      <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+        <dt className="text-gray-500">ADO User Story</dt>
+        <dd className="mt-0.5 text-gray-900">{req.userStory}</dd>
+      </div>
+    )}
+  </dl>
+</section>
+
+{/* Notes (full width, beneath details) */}
+<section className="rounded-xl bg-white p-4 shadow-sm">
+  <h2 className="mb-2 font-medium">Notes</h2>
+  {req.notes && req.notes.trim().length ? (
+    <p className="whitespace-pre-wrap text-sm text-gray-700">{req.notes}</p>
+  ) : (
+    <p className="text-sm text-gray-500">No notes added.</p>
+  )}
+</section>
+    
 
       {/* SKUs table */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
