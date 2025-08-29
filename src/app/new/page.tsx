@@ -4,7 +4,6 @@ import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import PreviewPane from "@/lib/components/PreviewPane";
 
-
 /* =============================================================================
    Types
 ============================================================================= */
@@ -75,12 +74,9 @@ const EMPTY_PRODUCT: ProductFormUI = {
   accessoriesCsv: "",
 };
 
-
-
-
 const STAMP_OPTIONS = [
   "", // blank allowed
-  "New!",
+  "New",
   "Limited Time",
   "While Supplies Last",
   "Limited Shelf Life",

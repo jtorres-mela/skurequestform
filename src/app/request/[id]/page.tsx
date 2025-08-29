@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SubmitToSmartlingPopup from "@/lib/components/SubmitToSmartlingPopup";
 import ManageRequestActions from "@/lib/components/ManageRequestActions";
+import "../../globals.css";
 
 // tiny helper, server-safe
 function formatBytes(n: number | null | undefined) {

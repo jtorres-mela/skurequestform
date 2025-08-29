@@ -111,7 +111,7 @@ export default async function Dashboard(
       {/* Header Row */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <h1 className="text-2xl font-semibold dark:text-gray-300">Dashboard</h1>
           <p className="text-sm text-gray-600">
             Search requests or start a new one.
           </p>

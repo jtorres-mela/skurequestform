@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import DarkModeToggle from "@/lib/components/DarkModeToggle";
 
 export const metadata: Metadata = {
   title: "SKU Requests",
@@ -31,9 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </div>
   </nav>
 </header>
-
-
-
         {/* MAIN CONTENT */}
         <main className="mx-auto max-w-8xl px-6 py-6">{children}</main>
       </body>
