@@ -19,3 +19,9 @@ yarn-error.log*
 
 # Smartling credentials (do not commit)
 src/lib/smartling-credentials.ts
+
+# Primsa Database
+prisma/dev.db
+
+# uploads
+uploads

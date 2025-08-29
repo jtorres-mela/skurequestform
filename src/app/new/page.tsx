@@ -96,15 +96,23 @@ const OFFSALE_OPTIONS = [
   "Temporarily Unavailable",
 ];
 
-
-
-
+const UNIT_OF_MEASURE_TITLE = [
+  "product(s)",
+  "g",
+  "oz",
+  "fl oz",
+  "ml",
+  "kg",
+  "softgels",
+  "capsules",
+  "tablets",
+  "chewables",
+  "servings"
+]
 
 // Parse a simple comma-separated list into trimmed non-empty strings
 const parseCsv = (s: string): string[] =>
   (s || "").split(",").map((x: string) => x.trim()).filter(Boolean);
-
-
 
 // --- Preview helpers ---
 type CultureCode = "en-US" | "en-CA" | "fr-CA" | "es-MX" | string;
@@ -739,16 +747,16 @@ async function submit() {
       />
     </Field>
     <Field label="Title (US)">
-      <Input
-        value={prod.uomTitleUS ?? ""}
-        onChange={(e) => {
-          const val = e.target.value;
-          setProducts(prev =>
-            prev.map((p, idx) => (idx === i ? { ...p, uomTitleUS: val } : p))
-          );
-        }}
-        placeholder="e.g., Pack Size, Volume"
-      />
+      <select
+        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
+        value={prod.uomTitleUS ?? ""}   // keep "" for “none”
+        onChange={(e) => updateProduct(i, { uomTitleUS: e.target.value || undefined })}>
+      {/* optional empty choice */}
+      <option value="">—</option>
+      {UNIT_OF_MEASURE_TITLE.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+      </select>
     </Field>
   </div>
 
@@ -766,17 +774,19 @@ async function submit() {
         placeholder="e.g., 237 ml"
       />
     </Field>
+
     <Field label="Title (CA)">
-      <Input
-        value={prod.uomTitleCA ?? ""}
-        onChange={(e) => {
-          const val = e.target.value;
-          setProducts(prev =>
-            prev.map((p, idx) => (idx === i ? { ...p, uomTitleCA: val } : p))
-          );
-        }}
-        placeholder="e.g., Volume"
-      />
+      <select
+        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
+        value={prod.uomTitleCA ?? ""}   // keep "" for “none”
+        onChange={(e) => updateProduct(i, { uomTitleCA: e.target.value || undefined })}
+      >
+        {/* optional empty choice */}
+        <option value="">—</option>
+        {UNIT_OF_MEASURE_TITLE.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
     </Field>
   </div>
 </section>
