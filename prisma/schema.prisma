@@ -130,13 +130,12 @@ model SubmissionProduct {
   @@index([submissionId])
   @@index([sku])
   @@unique([submissionId, sku, version])
-  @@unique([submissionId, sku, isCurrent])
 }
 
 model SubmissionProductRecommendation {
   id        Int               @id @default(autoincrement())
   productId Int
-  sku       String
+  recommendedSku String?
 
   product   SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 

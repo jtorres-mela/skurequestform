@@ -23,6 +23,7 @@ const CultureInput = z.object({
   translatedLong: strN,
 });
 
+// Each recommendation should carry a SKU from the client
 const RecommendationInput = z.object({ sku: z.string().min(1) });
 
 const AccessoryInput = z.object({
@@ -180,7 +181,9 @@ export async function POST(req: Request) {
 
               recommendations: p.recommendations && p.recommendations.length
                 ? {
-                    create: p.recommendations.map(r => ({ sku: r.sku })),
+                    create: p.recommendations
+                      .filter(r => typeof r?.sku === "string" && r.sku.trim() !== "")
+                      .map(r => ({ recommendedSku: r.sku.trim() })),
                   }
                 : undefined,
 

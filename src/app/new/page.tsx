@@ -401,7 +401,7 @@ export default function Page() {
           accessorySku: a.accessorySku ?? undefined,
           accessoryLabel: a.accessoryLabel ?? undefined,
         })),
-        recommendations: (cur.recommendations ?? []).map((r: any) => ({ sku: r.sku })),
+        recommendations: (cur.recommendations ?? []).map((r: any) => ({ sku: r.recommendedSku ?? "" })).filter((r: any) => r.sku !== ""),
         cultures: (cur.cultures ?? []).map((c: any) => ({
           cultureCode: c.cultureCode,
           translatedName: c.translatedName ?? undefined,
@@ -409,7 +409,7 @@ export default function Page() {
           translatedLong: c.translatedLong ?? undefined,
         })),
         // seed UI mirrors so the inputs show what’s stored
-        recommendationsCsv: (cur.recommendations ?? []).map((r: any) => r.sku).join(", "),
+        recommendationsCsv: (cur.recommendations ?? []).map((r: any) => r.recommendedSku ?? "").filter(Boolean).join(", "),
         accessoriesCsv: (cur.accessories ?? []).map((a: any) => a.accessorySku ?? "").filter(Boolean).join(", "),
       }]);
     })();

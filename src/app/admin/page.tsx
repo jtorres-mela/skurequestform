@@ -167,7 +167,7 @@ export default async function AdminPage({
                                       key={r.id}
                                       className="inline-flex items-center rounded-full border px-2 py-0.5 font-mono"
                                     >
-                                      {r.sku}
+                                      {r.recommendedSku || "—"}
                                     </span>
                                   ))}
                                 </div>

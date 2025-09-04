@@ -259,9 +259,7 @@ export default async function ManageRequest({
                           Add Revision
                         </Link>
                         <Link
-                          href={`/request/${req.id}/history?sku=${encodeURIComponent(
-                            r.sku
-                          )}&submissionId=${r.submissionIdRaw}`}
+                          href={`/request/${req.id}/history?sku=${encodeURIComponent(r.sku)}&submissionId=${r.submissionIdRaw}`}
                           className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
                         >
                           View History

@@ -32,7 +32,7 @@ type ProductForm = {
   nonMemberPrice?: string;    // e.g. "$16.00"
   points?: number;            // e.g. 10
 
-  recommendations?: { sku: string }[];
+  recommendations?: RecommendationRow[];
   accessories: { accessorySku?: string; accessoryLabel?: string }[];
   cultures: { cultureCode?: string; translatedName?: string; translatedShort?: string; translatedLong?: string }[];
 };

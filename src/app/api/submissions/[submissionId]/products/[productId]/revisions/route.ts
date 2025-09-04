@@ -40,6 +40,7 @@ const RevisionInput = z.object({
       })
     )
     .optional(),
+  // Each recommendation carries a SKU string
   recommendations: z.array(z.object({ sku: z.string().min(1) })).optional(),
   cultures: z
     .array(
@@ -55,8 +56,10 @@ const RevisionInput = z.object({
 
 export async function POST(
   req: Request,
-  { params }: { params: { submissionId: string; productId: string } }
+  context: { params: { submissionId: string; productId: string } } | { params: Promise<{ submissionId: string; productId: string }> }
 ) {
+  // Await params if it's a Promise (Next.js app directory dynamic route requirement)
+  const params = 'then' in context.params ? await context.params : context.params;
   const submissionId = Number(params.submissionId);
   const productId = Number(params.productId);
   if (!Number.isFinite(submissionId) || !Number.isFinite(productId)) {
@@ -90,7 +93,7 @@ export async function POST(
       });
       const nextVersion = (max._max.version ?? 1) + 1;
 
-      // Flip current -> false
+      // Set the current record to false (this should be the only current one due to constraint)
       await tx.submissionProduct.update({
         where: { id: cur.id },
         data: { isCurrent: false },
@@ -98,7 +101,6 @@ export async function POST(
 
       // ----- Build nested inputs with simple local shapes (no map-callback types needed) -----
       type AccessoryCreate = { accessorySku: string | null; accessoryLabel: string | null };
-      type RecommendationCreate = { sku: string };
       type CultureCreate = {
         cultureCode: string;
         translatedName: string | null;
@@ -107,7 +109,7 @@ export async function POST(
       };
 
       const accessoriesToCreate: AccessoryCreate[] = [];
-      const recsToCreate: RecommendationCreate[] = [];
+      let recsToCreate: { recommendedSku: string }[] = [];
       const culturesToCreate: CultureCreate[] = [];
 
       // Accessories
@@ -130,15 +132,17 @@ export async function POST(
         }
       }
 
-      // Recommendations
+      // Recommendations: map to recommendedSku strings
       if (patch.recommendations && patch.recommendations.length) {
-        for (const r of patch.recommendations) {
-          recsToCreate.push({ sku: r.sku });
-        }
+        recsToCreate = patch.recommendations
+          .map(r => (r?.sku || "").trim())
+          .filter(Boolean)
+          .map(sku => ({ recommendedSku: sku }));
       } else {
-        for (const r of cur.recommendations) {
-          recsToCreate.push({ sku: r.sku });
-        }
+        recsToCreate = cur.recommendations
+          .map(r => r.recommendedSku)
+          .filter((s): s is string => !!s)
+          .map(sku => ({ recommendedSku: sku }));
       }
 
       // Cultures
@@ -166,7 +170,7 @@ export async function POST(
       const requestedCulturesJson =
         (patch.requestedCulturesJson as unknown) ??
         (cur.requestedCulturesJson as unknown) ??
-        null;
+        undefined;
 
       // ----- Create new revision row -----
       return tx.submissionProduct.create({
