@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import DOMPurify from "isomorphic-dompurify";
 
 /* ==== Types (kept local; TS is structural so they'll match page.tsx) ==== */
 type CultureRow = { cultureCode?: string; translatedName?: string; translatedShort?: string; translatedLong?: string };
@@ -362,9 +363,12 @@ function buildPreviewHtml(product: ProductForm, culture: string) {
                 </header>
                 <div>
                     <div id="textLongDescription">
-                        <div class="font-light px-10">
-                          ${escapeHtml(long)}
-                        </div>
+                         <div class="font-light px-10">
+      ${DOMPurify.sanitize(long ?? "", {
+        ALLOWED_TAGS: ["p","strong","b","em","i","u","ul","ol","li","br","a"],
+        ALLOWED_ATTR: ["href","target","rel"],
+      })}
+    </div>
                     </div>
                 </div>
             </section>

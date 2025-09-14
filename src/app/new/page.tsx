@@ -3,16 +3,45 @@
 import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import PreviewPane from "@/lib/components/PreviewPane";
+import { FormField, CurrencyInput } from "@/lib/components/Form";
+import { AccessoryChips } from "../../lib/components/AccessoryChips";
+import { SkuChips } from "../../lib/components/SkuChips";
+import RichTextEditorQuill from "../../lib/components/RichTextEditorQuill";
+import dynamic from "next/dynamic";
+import { ArrowRightLeft, Eraser } from "lucide-react";
+import { IconButton } from "@/lib/components/IconButton";
+
 
 /* =============================================================================
    Types
 ============================================================================= */
+
+type MarketCode = "US" | "CA" | "MX" | "GB" | "IE" | "NL" | "DE" | "PL" | "LT";
+// Optional, if you want stricter currency typing:
+type CurrencyCode = "USD" | "CAD" | "MXN" | "EUR" | "GBP" | "PLN";
+
+type MarketRowDraft = {
+  market: MarketCode;
+  currency?: CurrencyCode | string | null; // keep string to be flexible if needed
+  // Savings
+  noSavings?: boolean;
+  savings?: string | null;       // keep as string in UI; server coerces to Decimal
+  // UOM
+  uomValue?: string | null;
+  uomTitle?: string | null;
+  // Dates
+  onSaleDate?: string | null;    // "YYYY-MM-DD"
+  offSaleDate?: string | null;
+  noEndDate?: boolean;
+};
+
 type CultureRow = {
   cultureCode?: string;
   translatedName?: string;
   translatedShort?: string;
   translatedLong?: string;
 };
+
 type AccessoryRow = { accessorySku?: string; accessoryLabel?: string };
 type RecommendationRow = { sku: string };
 
@@ -24,55 +53,45 @@ type ProductForm = {
   stamp?: string | null;
   offSaleMessage?: string | null;
 
-  onSaleDate?: string | null;
-  offSaleDate?: string | null;
-  noEndDate?: boolean;
+  // Per-market values live here now
+  markets?: MarketRowDraft[];
 
-  uomTitleUS?: string;
-  uomValueUS?: string;
-  uomTitleCA?: string;
-  uomValueCA?: string;
-
-  savingsUS?: string | null;
-  savingsCA?: string | null;
-  noSavings?: boolean;
-
-  recommendations?: RecommendationRow[];
+  // Translations & extras
+  includeTranslations?: boolean;
   requestedCultures?: string[];
 
   isPdpRequested?: boolean;
   pdpWorkRequest?: string | null;
-  includeTranslations?: boolean;
 
   accessories: AccessoryRow[];
   cultures: CultureRow[];
+  recommendations?: RecommendationRow[];
 };
 
 type ProductFormUI = ProductForm & {
-  recommendationsCsv?: string; // UI-only mirror text
-  accessoriesCsv?: string;     // UI-only mirror text
+  recommendationsCsv?: string;
+  accessoriesCsv?: string;
 };
 
-
 /* =============================================================================
-   Constants (dropdown choices, helpers)
-   - Keep these outside the component so they're not recreated every render.
+   Constants
 ============================================================================= */
+
+
 const EMPTY_PRODUCT: ProductFormUI = {
   sku: "",
   productName: "",
   accessories: [],
   cultures: [],
-  noEndDate: false,
-  noSavings: false,
+  markets: [],                 // per-market container
+  requestedCultures: [],       // helps decide which market cards to render
   includeTranslations: false,
   isPdpRequested: false,
   pdpWorkRequest: null,
-  savingsUS: null,
-  savingsCA: null,
   recommendationsCsv: "",
   accessoriesCsv: "",
 };
+
 
 const STAMP_OPTIONS = [
   "", // blank allowed
@@ -146,53 +165,170 @@ function Badge({ children, kind = "neutral" }: { children: React.ReactNode; kind
 }
 
 
+function SavingsPreview({ amount, country }: { amount?: string; country: "US" | "CA" }) {
+  if (!amount) return (
+    <div className="text-[11px] text-gray-400">No amount set for {country}.</div>
+  );
+  return (
+    <div className="mt-1 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+      {country}: Save ${Number(amount).toFixed(2)}
+    </div>
+  );
+}
+
+
+
 /* =============================================================================
    Primitive UI helpers (Button, Card, Field, Inputs)
 ============================================================================= */
 
-/** The checkboxes the user sees */
+
+const MARKET_ORDER = ["US","CA","MX","GB","IE","NL","DE","PL","LT"] as const;
+
+
+function marketsToRender(prod: any): MarketCode[] {
+  // Prefer requestedCultures (checkboxes), else whatever is already on the product, else US/CA
+  const req = (prod.requestedCultures ?? prod.requestedCulturesJson ?? []) as string[] | undefined;
+  const fromRequested = (req ?? []).filter((k): k is MarketCode => (MARKET_ORDER as readonly string[]).includes(k));
+  if (fromRequested.length) {
+    return Array.from(new Set(fromRequested)).sort(
+      (a, b) => MARKET_ORDER.indexOf(a) - MARKET_ORDER.indexOf(b)
+    );
+  }
+  const fromSaved = ((prod.markets ?? []) as Array<{ market: string }>).map(m => m.market)
+    .filter((k): k is MarketCode => (MARKET_ORDER as readonly string[]).includes(k));
+  return fromSaved.length ? fromSaved : (["US","CA"] as MarketCode[]);
+}
+
+function getMarket(prod: any, market: MarketCode) {
+  return (prod.markets ?? []).find((m: any) => m.market === market) ?? {};
+}
+
+// narrow what can be patched on a market row
+type MarketPatch = Partial<
+  Pick<
+    MarketRowDraft,
+    | "uomValue"
+    | "uomTitle"
+    | "savings"
+    | "noSavings"
+    | "currency"
+    | "onSaleDate"
+    | "offSaleDate"
+    | "noEndDate"
+  >
+>;
+
+
+
+const UOM_PLACEHOLDER: Record<MarketCode, string> = {
+  US: "8 fl oz",
+  CA: "237 ml",
+  MX: "237 ml",
+  GB: "250 ml",
+  IE: "250 ml",
+  NL: "250 ml",
+  DE: "250 ml",
+  PL: "250 ml",
+  LT: "250 ml",
+};
+
+
+
+
 const CULTURE_PRESETS: { key: string; label: string }[] = [
   { key: "US", label: "US" },
   { key: "CA", label: "CA" },
   { key: "MX", label: "MX" },
-
+  { key: "GB", label: "GB" },
+  { key: "IE", label: "IE" },
+  { key: "NL", label: "NL" },
+  { key: "DE", label: "DE" },
+  { key: "PL", label: "PL" },
+  { key: "LT", label: "LT" },
 ];
 
-const EU_KEYS = ["GB", "IE", "NL", "DE", "PL", "LT"];
+const EU_KEYS = ["GB", "IE", "NL", "DE", "PL", "LT"] as const;
+const ORDER = CULTURE_PRESETS.map((c) => c.key);
+const sortByPreset = (a: string, b: string) => ORDER.indexOf(a) - ORDER.indexOf(b);
 
-function CulturePicker({
+export function CulturePicker({
   value,
   onChange,
 }: {
   value: string[] | undefined;
   onChange: (next: string[]) => void;
 }) {
+  const list = React.useMemo(() => value ?? [], [value]);
+
   const setHas = (k: string, checked: boolean) => {
-    const cur = new Set(value ?? []);
-    if (checked) cur.add(k);
-    else cur.delete(k);
-    onChange([...cur]);
+    const cur = new Set(list);
+    checked ? cur.add(k) : cur.delete(k);
+    onChange([...cur].sort(sortByPreset));
   };
 
-  const toggleGroup = (keys: string[], on = true) => {
-    const cur = new Set(value ?? []);
-    keys.forEach(k => (on ? cur.add(k) : cur.delete(k)));
-    onChange([...cur]);
+  const toggleGroup = (keys: readonly string[], on = true) => {
+    const cur = new Set(list);
+    keys.forEach((k) => (on ? cur.add(k) : cur.delete(k)));
+    onChange([...cur].sort(sortByPreset));
   };
 
-  const allEUSelected = EU_KEYS.every(k => (value ?? []).includes(k));
+  const selectAll = () => onChange([...ORDER]);
+  const clearAll = () => onChange([]);
+
+  const someEUSelected = EU_KEYS.some((k) => list.includes(k));
+  const allEUSelected = EU_KEYS.every((k) => list.includes(k));
+
+  // Tri-state checkbox: indeterminate when some but not all EU are selected
+  const euRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (euRef.current) euRef.current.indeterminate = someEUSelected && !allEUSelected;
+  }, [someEUSelected, allEUSelected]);
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 text-xs">
-       
+      {/* Quick actions + EU group toggle */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <button
+          type="button"
+          className="rounded-md border border-gray-200 bg-white px-2 py-1 hover:bg-gray-50"
+          onClick={selectAll}
+        >
+          Select All
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-gray-200 bg-white px-2 py-1 hover:bg-gray-50"
+          onClick={clearAll}
+        >
+          Clear All
+        </button>
+
+        <label className="ml-2 inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 hover:bg-gray-50">
+          <input
+            ref={euRef}
+            type="checkbox"
+            className="h-4 w-4"
+            checked={allEUSelected}
+            onChange={(e) => toggleGroup(EU_KEYS, e.target.checked)}
+          />
+          <span className="font-medium">EU</span>
+          <span className="text-[10px] text-gray-500">({EU_KEYS.length})</span>
+        </label>
       </div>
 
+      {/* Per-culture checkboxes */}
       <div className="grid gap-2 sm:grid-cols-3">
         {CULTURE_PRESETS.map(({ key, label }) => {
-          const checked = (value ?? []).includes(key);
+          const checked = list.includes(key);
           return (
-            <label key={key} className="inline-flex items-center gap-2 rounded-lg px-3 py-2">
+            <label
+              key={key}
+              className={
+                "inline-flex items-center gap-2 rounded-lg border px-3 py-2 " +
+                (checked ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200")
+              }
+            >
               <input
                 type="checkbox"
                 className="h-4 w-4"
@@ -204,10 +340,14 @@ function CulturePicker({
           );
         })}
       </div>
+
+      {/* Optional: tiny helper line to show which countries are in EU */}
+      <p className="text-[11px] text-gray-500">
+        EU group: {EU_KEYS.join(", ")}
+      </p>
     </div>
   );
 }
-
   
 
 function Button({
@@ -314,23 +454,20 @@ export default function Page() {
   // ---- state FIRST (so anything below can safely reference them) ----
   const [requester, setRequester] = React.useState("");
   const [note, setNote] = React.useState("");
-  const [products, setProducts] = React.useState<ProductFormUI[]>([{
-    sku: "",
-    productName: "",
-    accessories: [],
-    cultures: [],
-    // sensible defaults
-    noEndDate: false,
-    noSavings: false,
-    includeTranslations: false,
-    isPdpRequested: false,
-    pdpWorkRequest: null,
-    savingsUS: null,
-    savingsCA: null,
-    // UI mirrors
-    recommendationsCsv: "",
-    accessoriesCsv: "",
-  }]);
+
+  // ✅ Initialize with the new shape (no noEndDate/noSavings/savingsUS/savingsCA at top level)
+  const [products, setProducts] = React.useState<ProductFormUI[]>([
+    { ...EMPTY_PRODUCT },
+    // If you want US/CA visible by default, use:
+     {
+       ...EMPTY_PRODUCT,
+       requestedCultures: ["US", "CA"],
+       markets: [
+         { market: "US", currency: "USD", noSavings: false, savings: null, uomValue: null, uomTitle: null, onSaleDate: null, offSaleDate: null, noEndDate: false },
+         { market: "CA", currency: "CAD", noSavings: false, savings: null, uomValue: null, uomTitle: null, onSaleDate: null, offSaleDate: null, noEndDate: false },
+       ],
+     },
+  ]);
 
   const [status, setStatus] =
     React.useState<"idle" | "saving" | "done" | "error">("idle");
@@ -340,9 +477,11 @@ export default function Page() {
   // ---- now any hooks that depend on state ----
   const updateProduct = React.useCallback(
     (idx: number, patch: Partial<ProductFormUI>) => {
-      setProducts(prev => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+      setProducts((prev: ProductFormUI[]) =>
+        prev.map((p, i) => (i === idx ? { ...p, ...patch } : p))
+      );
     },
-    []
+    [setProducts]
   );
 
   // URL params (memoized)
@@ -364,58 +503,126 @@ export default function Page() {
     return Number.isFinite(n) ? n : undefined;
   }, [sp]);
 
-  // Prefill for revision flow
-  React.useEffect(() => {
-    let cancelled = false;
+// Prefill for revision flow
+React.useEffect(() => {
+  let cancelled = false;
 
-    (async () => {
-      if (!fromProductId || !submissionId) return;
+  const run = async () => {
+    if (!fromProductId || !submissionId) return;
 
-      const res = await fetch(`/api/submissions/${submissionId}/products/${fromProductId}`);
+    try {
+      const res = await fetch(
+        `/api/submissions/${submissionId}/products/${fromProductId}`
+      );
       if (!res.ok) return;
 
       const cur = await res.json();
       if (cancelled) return;
 
-      setProducts([{
-        sku: cur.sku ?? "",
-        productName: cur.productName ?? "",
-        shortDescription: cur.shortDescription ?? undefined,
-        longDescription: cur.longDescription ?? undefined,
-        stamp: cur.stamp ?? undefined,
-        offSaleMessage: cur.offSaleMessage ?? undefined,
-        onSaleDate: cur.onSaleDate ? new Date(cur.onSaleDate).toISOString().slice(0,10) : undefined,
-        offSaleDate: cur.offSaleDate ? new Date(cur.offSaleDate).toISOString().slice(0,10) : undefined,
-        noEndDate: !!cur.noEndDate,
-        uomTitleUS: cur.uomTitleUS ?? undefined,
-        uomValueUS: cur.uomValueUS ?? undefined,
-        uomTitleCA: cur.uomTitleCA ?? undefined,
-        uomValueCA: cur.uomValueCA ?? undefined,
-        savingsUS: cur.savingsUS ?? undefined,
-        savingsCA: cur.savingsCA ?? undefined,
-        noSavings: !!cur.noSavings,
-        isPdpRequested: !!cur.isPdpRequested,
-        pdpWorkRequest: cur.pdpWorkRequest ?? null,
-        includeTranslations: !!cur.includeTranslations,
-        accessories: (cur.accessories ?? []).map((a: any) => ({
-          accessorySku: a.accessorySku ?? undefined,
-          accessoryLabel: a.accessoryLabel ?? undefined,
-        })),
-        recommendations: (cur.recommendations ?? []).map((r: any) => ({ sku: r.recommendedSku ?? "" })).filter((r: any) => r.sku !== ""),
-        cultures: (cur.cultures ?? []).map((c: any) => ({
-          cultureCode: c.cultureCode,
-          translatedName: c.translatedName ?? undefined,
-          translatedShort: c.translatedShort ?? undefined,
-          translatedLong: c.translatedLong ?? undefined,
-        })),
-        // seed UI mirrors so the inputs show what’s stored
-        recommendationsCsv: (cur.recommendations ?? []).map((r: any) => r.recommendedSku ?? "").filter(Boolean).join(", "),
-        accessoriesCsv: (cur.accessories ?? []).map((a: any) => a.accessorySku ?? "").filter(Boolean).join(", "),
-      }]);
-    })();
+      // Map API -> UI shape (per-market model)
+      setProducts([
+        {
+          ...EMPTY_PRODUCT,
+          sku: cur.sku ?? "",
+          productName: cur.productName ?? "",
+          shortDescription: cur.shortDescription ?? undefined,
+          longDescription: cur.longDescription ?? undefined,
+          stamp: cur.stamp ?? null,
+          offSaleMessage: cur.offSaleMessage ?? null,
 
-    return () => { cancelled = true; };
-  }, [fromProductId, submissionId]);
+          includeTranslations: !!cur.includeTranslations,
+          requestedCultures: Array.isArray(cur.requestedCulturesJson)
+            ? cur.requestedCulturesJson
+            : [],
+
+          markets: Array.isArray(cur.markets)
+            ? cur.markets.map((m: any) => ({
+                market: m.market,
+                currency: m.currency ?? null,
+                noSavings: !!m.noSavings,
+                savings:
+                  m.savings != null && m.savings !== "" ? String(m.savings) : null,
+                uomValue: m.uomValue ?? null,
+                uomTitle: m.uomTitle ?? null,
+                onSaleDate: m.onSaleDate
+                  ? new Date(m.onSaleDate).toISOString().slice(0, 10)
+                  : null,
+                offSaleDate: m.offSaleDate
+                  ? new Date(m.offSaleDate).toISOString().slice(0, 10)
+                  : null,
+                noEndDate: !!m.noEndDate,
+              }))
+            : [],
+
+          cultures: (cur.cultures ?? []).map((c: any) => ({
+            cultureCode: c.cultureCode,
+            translatedName: c.translatedName ?? undefined,
+            translatedShort: c.translatedShort ?? undefined,
+            translatedLong: c.translatedLong ?? undefined,
+          })),
+
+          // Convert to CSV for your UI helpers (optional)
+          recommendationsCsv: (cur.recommendations ?? [])
+            .map((r: any) => r.recommendedSku ?? "")
+            .filter(Boolean)
+            .join(", "),
+          accessories: (cur.accessories ?? []).map((a: any) => ({
+            accessorySku: a.accessorySku ?? undefined,
+            accessoryLabel: a.accessoryLabel ?? undefined,
+          })),
+          accessoriesCsv: (cur.accessories ?? [])
+            .map((a: any) => a.accessorySku ?? "")
+            .filter(Boolean)
+            .join(", "),
+        },
+      ]);
+    } catch {
+      // swallow or setErr(...) if you want
+    }
+  };
+
+  void run();
+
+  // Proper cleanup (NOT JSX)
+  return () => {
+    cancelled = true;
+  };
+}, [fromProductId, submissionId, setProducts]);
+
+
+
+  /** Immutable update: add/update the market row on products[rowIndex] */
+const updateMarket = React.useCallback(
+  (rowIndex: number, market: MarketCode, patch: MarketPatch) => {
+    if (!patch || Object.keys(patch).length === 0) return;
+
+    setProducts((prev: ProductFormUI[]) => {
+      // bounds check
+      if (rowIndex < 0 || rowIndex >= prev.length) return prev;
+
+      const next = prev.slice();
+      const p: ProductFormUI = { ...next[rowIndex] };
+      const list: MarketRowDraft[] = Array.isArray(p.markets) ? [...p.markets] : [];
+
+      const idx = list.findIndex((m) => m.market === market);
+
+      if (idx >= 0) {
+        // merge into existing market row
+        list[idx] = { ...list[idx], ...patch };
+      } else {
+        // create new market row
+        list.push({ market, ...patch });
+      }
+
+      p.markets = list;
+      next[rowIndex] = p;
+      return next;
+    });
+  },
+  [setProducts]
+);
+
+
   // ---------------------------------------------------------------------------
   // Submit to /api/submissions
   // ---------------------------------------------------------------------------
@@ -428,54 +635,49 @@ async function submit() {
       throw new Error("Missing requestId — open this page from a Request.");
     }
 
-    const payloadProducts = products.map(
-      ({ recommendationsCsv, accessoriesCsv, ...base }: ProductFormUI) => {
-        const recs =
-          (base.recommendations && base.recommendations.length)
-            ? base.recommendations
-            : (recommendationsCsv
-                ? parseCsv(recommendationsCsv).map((sku: string) => ({ sku }))
-                : []);
+    const payloadProducts = products.map(({ recommendationsCsv, accessoriesCsv, markets = [], ...base }) => {
+  const recs =
+    base.recommendations?.length
+      ? base.recommendations
+      : (recommendationsCsv ? parseCsv(recommendationsCsv).map(sku => ({ sku })) : []);
 
-        const accs =
-          (base.accessories && base.accessories.length)
-            ? base.accessories
-            : (accessoriesCsv
-                ? parseCsv(accessoriesCsv).map((accessorySku: string) => ({ accessorySku }))
-                : []);
+  const accs =
+    base.accessories?.length
+      ? base.accessories
+      : (accessoriesCsv ? parseCsv(accessoriesCsv).map(accessorySku => ({ accessorySku })) : []);
 
-        return {
-          sku: base.sku,
-          productName: base.productName,
-          shortDescription: base.shortDescription ?? null,
-          longDescription: base.longDescription ?? null,
-          stamp: base.stamp ?? null,
-          offSaleMessage: base.offSaleMessage ?? null,
+  return {
+    sku: base.sku,
+    productName: base.productName,
+    shortDescription: base.shortDescription ?? null,
+    longDescription: base.longDescription ?? null,
+    stamp: base.stamp ?? null,
+    offSaleMessage: base.offSaleMessage ?? null,
 
-          onSaleDate: base.onSaleDate ?? null,
-          offSaleDate: base.noEndDate ? null : (base.offSaleDate ?? null),
-          noEndDate: !!base.noEndDate,
+    // NEW: per-market shape (server stores into SubmissionProductMarket)
+    markets: markets.map(m => ({
+      market: m.market,
+      currency: m.currency ?? null,
+      noSavings: !!m.noSavings,
+      savings: m.noSavings ? null : (m.savings != null && m.savings !== "" ? String(m.savings) : null),
+      uomValue: m.uomValue ?? null,
+      uomTitle: m.uomTitle ?? null,
+      onSaleDate: m.onSaleDate ?? null,
+      offSaleDate: m.noEndDate ? null : (m.offSaleDate ?? null),
+      noEndDate: !!m.noEndDate,
+    })),
 
-          uomTitleUS: base.uomTitleUS ?? null,
-          uomValueUS: base.uomValueUS ?? null,
-          uomTitleCA: base.uomTitleCA ?? null,
-          uomValueCA: base.uomValueCA ?? null,
+    isPdpRequested: !!base.isPdpRequested,
+    pdpWorkRequest: base.isPdpRequested ? (base.pdpWorkRequest ?? null) : null,
 
-          savingsUS: base.noSavings ? null : (base.savingsUS ?? null),
-          savingsCA: base.noSavings ? null : (base.savingsCA ?? null),
-          noSavings: !!base.noSavings,
+    includeTranslations: !!base.includeTranslations,
+    cultures: base.includeTranslations ? (base.cultures ?? []) : [],
 
-          isPdpRequested: !!base.isPdpRequested,
-          pdpWorkRequest: base.isPdpRequested ? (base.pdpWorkRequest ?? null) : null,
+    recommendations: recs,
+    accessories: accs,
+  };
+});
 
-          includeTranslations: !!base.includeTranslations,
-          cultures: base.includeTranslations ? (base.cultures ?? []) : [],
-
-          recommendations: recs, // [{ sku }]
-          accessories: accs,     // [{ accessorySku, accessoryLabel? }]
-        };
-      }
-    );
 
     if (fromProductId && submissionId) {
       // Create a revision (single SKU patch)
@@ -535,7 +737,7 @@ async function submit() {
 
     
         {/* Product blocks */}
-        {products.map((prod, i) => (
+        {products.map((prod: ProductFormUI, i) => (
           <Card
             key={i}
             title={`SKU #${i + 1}`}
@@ -629,12 +831,13 @@ async function submit() {
 </Field>
 
 <Field label="Long Description">
-  <Textarea
-    rows={4}
+  <RichTextEditorQuill
     value={prod.longDescription ?? ""}
-    onChange={(e) => updateProduct(i, { longDescription: e.target.value })}
+    onChange={(html) => updateProduct(i, { longDescription: html })}
   />
 </Field>
+
+
 
               {/* If PDP requested */}
 <div className="mt-4 space-y-2">
@@ -672,247 +875,191 @@ async function submit() {
 </div>
 
 
-{/* Dates */}
-<div className="space-y-3">
-  <Field label="On Sale Date">
-    <Input
-      type="date"
-      value={typeof prod.onSaleDate === "string" ? prod.onSaleDate.slice(0, 10) : ""}
-      onChange={(e) => {
-        const cp = [...products];
-        cp[i].onSaleDate = e.target.value ? new Date(e.target.value).toISOString() : null;
-        setProducts(cp);
-      }}
-    />
-  </Field>
+{/* Dates (per market) */}
+<section className="space-y-3">
+  <h3 className="text-base font-semibold">Dates</h3>
+  <p className="text-xs text-gray-600">Set the on/off sale window per market.</p>
 
-  <div className="flex items-center gap-3">
-    <input
-      id={`no-end-${i}`}
-      type="checkbox"
-      checked={!!prod.noEndDate}
-      onChange={(e) => {
-        const cp = [...products];
-        cp[i].noEndDate = e.target.checked;
-        if (e.target.checked) cp[i].offSaleDate = null; // clear it
-        setProducts(cp);
-      }}
-    />
-    <label htmlFor={`no-end-${i}`} className="text-sm">No End Date Needed</label>
+  <div className="grid gap-3 md:grid-cols-2">
+    {marketsToRender(prod).map((mkt) => {
+      const mv = getMarket(prod, mkt);
+      return (
+        <div key={mkt} className="space-y-2 rounded-lg border border-gray-200 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{mkt}</span>
+            <label className="inline-flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={!!mv.noEndDate}
+                onChange={(e) => updateMarket(i, mkt, { noEndDate: e.target.checked, offSaleDate: e.target.checked ? null : (mv.offSaleDate ?? null) })}
+              />
+              <span>No end date</span>
+            </label>
+          </div>
+
+          <Field label={`On Sale (${mkt})`}>
+            <Input
+              type="date"
+              value={typeof mv.onSaleDate === "string" ? mv.onSaleDate.slice(0,10) : ""}
+              onChange={(e) => updateMarket(i, mkt, { onSaleDate: e.target.value || null })}
+            />
+          </Field>
+
+          <Field label={`Off Sale (${mkt})`}>
+            <Input
+              type="date"
+              disabled={!!mv.noEndDate}
+              value={mv.noEndDate ? "" : (typeof mv.offSaleDate === "string" ? mv.offSaleDate.slice(0,10) : "")}
+              onChange={(e) => updateMarket(i, mkt, { offSaleDate: e.target.value || null })}
+            />
+          </Field>
+        </div>
+      );
+    })}
   </div>
-
-  <Field label="Off Sale Date">
-    <Input
-      type="date"
-      disabled={!!prod.noEndDate}
-      value={
-        prod.noEndDate
-          ? ""
-          : (typeof prod.offSaleDate === "string" ? prod.offSaleDate.slice(0, 10) : "")
-      }
-      onChange={(e) => {
-        const cp = [...products];
-        cp[i].offSaleDate = e.target.value ? new Date(e.target.value).toISOString() : null;
-        setProducts(cp);
-      }}
-    />
-  </Field>
-</div>
+</section>
 
 
-
-{/* Unit of Measure */}
+{/* Unit of Measure (per market) */}
 <section className="space-y-3 mt-4">
   <h3 className="text-base font-semibold">Unit of Measure</h3>
   <p className="text-xs text-gray-600">
-    Product size information (e.g., <em>2 products</em>, <em>8 fl oz</em>, <em>237 ml</em>, etc.)
+    Product size information (e.g., <em>2 products</em>, <em>8 fl oz</em>, <em>237 ml</em>).
   </p>
 
-  {/* US */}
   <div className="grid gap-3 md:grid-cols-2">
-    <Field label="Value (US)">
-      <Input
-        value={prod.uomValueUS ?? ""}
-        onChange={(e) => {
-          const val = e.target.value;
-          setProducts(prev =>
-            prev.map((p, idx) => (idx === i ? { ...p, uomValueUS: val } : p))
-          );
-        }}
-        placeholder="e.g., 2 products, 8 fl oz"
-      />
-    </Field>
-    <Field label="Title (US)">
-      <select
-        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
-        value={prod.uomTitleUS ?? ""}   // keep "" for “none”
-        onChange={(e) => updateProduct(i, { uomTitleUS: e.target.value || undefined })}>
-      {/* optional empty choice */}
-      <option value="">—</option>
-      {UNIT_OF_MEASURE_TITLE.map((o) => (
-        <option key={o} value={o}>{o}</option>
-      ))}
-      </select>
-    </Field>
-  </div>
+    {marketsToRender(prod).map((mkt) => {
+      const mv = getMarket(prod, mkt);
+      return (
+        <div key={mkt} className="space-y-3 rounded-lg border border-gray-200 p-3">
+          <div className="text-sm font-medium">{mkt}</div>
 
-  {/* CA */}
-  <div className="grid gap-3 md:grid-cols-2">
-    <Field label="Value (CA)">
-      <Input
-        value={prod.uomValueCA ?? ""}
-        onChange={(e) => {
-          const val = e.target.value;
-          setProducts(prev =>
-            prev.map((p, idx) => (idx === i ? { ...p, uomValueCA: val } : p))
-          );
-        }}
-        placeholder="e.g., 237 ml"
-      />
-    </Field>
+          <Field label={`Value (${mkt})`}>
+            <Input
+              value={mv.uomValue ?? ""}
+              onChange={(e) => updateMarket(i, mkt, { uomValue: e.target.value || null })}
+              placeholder={mkt === "US" ? "8 fl oz" : "237 ml"}
+            />
+          </Field>
 
-    <Field label="Title (CA)">
-      <select
-        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
-        value={prod.uomTitleCA ?? ""}   // keep "" for “none”
-        onChange={(e) => updateProduct(i, { uomTitleCA: e.target.value || undefined })}
-      >
-        {/* optional empty choice */}
-        <option value="">—</option>
-        {UNIT_OF_MEASURE_TITLE.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
-    </Field>
+          <Field label={`Title (${mkt})`}>
+            <select
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
+              value={mv.uomTitle ?? ""}
+              onChange={(e) => updateMarket(i, mkt, { uomTitle: e.target.value || null })}
+            >
+              <option value="">—</option>
+              {UNIT_OF_MEASURE_TITLE.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      );
+    })}
   </div>
 </section>
 
 
 
-      {/* Savings Amount */}
-<section className="space-y-3 mt-4">
-  {/* Heading + description */}
+{/* Savings Amount (per market) */}
+<section className="space-y-4 mt-6">
+  <h3 className="text-base font-semibold">Savings Amount</h3>
+  <p className="text-xs text-gray-600">
+    Shown on the savings callout; enter a dollar amount (e.g., 5.00), not a percentage.
+  </p>
+
+  <div className="grid gap-3 md:grid-cols-2">
+    {marketsToRender(prod).map((mkt) => {
+      const mv = getMarket(prod, mkt);
+      const disabled = !!mv.noSavings;
+      return (
+        <div key={mkt} className="space-y-2 rounded-lg border border-gray-200 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{mkt}</span>
+            <label className="inline-flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={!!mv.noSavings}
+                onChange={(e) => updateMarket(i, mkt, { noSavings: e.target.checked, savings: e.target.checked ? "" : (mv.savings ?? "") })}
+              />
+              <span>No savings</span>
+            </label>
+          </div>
+
+          <CurrencyInput
+            id={`savings-${mkt}-${i}`}
+            value={disabled ? "" : (mv.savings ?? "")}
+            placeholder="5.00"
+            disabled={disabled}
+            onChange={(v) => updateMarket(i, mkt, { savings: v })}
+          />
+          <p className="text-[11px] text-gray-500">
+            Use up to 2 decimals. Leave blank if not applicable.
+          </p>
+        </div>
+      );
+    })}
+  </div>
+</section>
+
+
+   {/* Recommended Products */}
+<section className="space-y-4 mt-6">
   <div>
-    <h3 className="text-base font-semibold">Savings Amount</h3>
+    <h3 className="text-base font-semibold">Recommended Products</h3>
     <p className="text-xs text-gray-600">
-      The amount to appear on the savings callout. Enter a dollar amount (e.g., <em>5.00</em>), not a percentage.
+      Add SKUs to recommend with this product. Type a SKU and press Enter, or paste a list.
     </p>
   </div>
 
-  {/* No Savings toggle (now on its own line below heading) */}
-  <label className="inline-flex items-center gap-2 text-sm">
-    <input
-      type="checkbox"
-      className="h-4 w-4"
-      checked={!!prod.noSavings}
-      onChange={(e) => {
-        const checked = e.target.checked;
-        const cp = [...products];
-        cp[i].noSavings = checked;
-        if (checked) {
-          cp[i].savingsUS = "";
-          cp[i].savingsCA = "";
-        }
-        setProducts(cp);
+  <div className="rounded-lg border border-gray-200 p-3">
+    <SkuChips
+      value={prod.recommendations ?? []}
+      onChange={(next) => {
+        updateProduct(i, {
+          recommendations: next,
+          // keep CSV in sync if anything else reads it
+          recommendationsCsv: next.map(r => r.sku).filter(Boolean).join(", "),
+        });
       }}
+      // fetchSuggestions={async (q) => ... } // optional autosuggest
     />
-    <span>No Savings Amount Needed</span>
-  </label>
-
-  {/* Inputs */}
-  <div className="grid gap-3 md:grid-cols-2">
-    <Field label="Savings (US)">
-      <Input
-        type="number"
-        step="0.01"
-        min="0"
-        placeholder="e.g., 5.00"
-        disabled={!!prod.noSavings}
-        value={prod.noSavings ? "" : (prod.savingsUS ?? "")}
-        onChange={(e) => {
-          const val = e.target.value;
-          if (!val || /^\d+(\.\d{0,2})?$/.test(val)) {
-            const cp = [...products];
-            cp[i].savingsUS = val;
-            setProducts(cp);
-          }
-        }}
-      />
-    </Field>
-
-    <Field label="Savings (CA)">
-      <Input
-        type="number"
-        step="0.01"
-        min="0"
-        placeholder="e.g., 3.50"
-        disabled={!!prod.noSavings}
-        value={prod.noSavings ? "" : (prod.savingsCA ?? "")}
-        onChange={(e) => {
-          const val = e.target.value;
-          if (!val || /^\d+(\.\d{0,2})?$/.test(val)) {
-            const cp = [...products];
-            cp[i].savingsCA = val;
-            setProducts(cp);
-          }
-        }}
-      />
-    </Field>
+    <p className="mt-2 text-[11px] text-gray-500">
+      Tip: use <em>Bulk add</em> to paste comma, space, or line separated SKUs. Duplicates are ignored.
+    </p>
   </div>
 </section>
 
+{/* Accessories */}
+<section className="space-y-4 mt-6">
+  <div>
+    <h3 className="text-base font-semibold">Accessories</h3>
+    <p className="text-xs text-gray-600">
+      Attach compatible accessories (SKU + optional label) shown alongside this SKU on PDP/placements.
+    </p>
+  </div>
 
-
-              {/* Recommended Products — CSV of SKUs */}
-{products.map((prod: ProductFormUI, i) => (
-  <>
-    {/* Recommended Products — CSV of SKUs */}
-    <Field label="Recommended Products (CSV of SKUs)">
-      <Input
-        className="font-mono"
-        placeholder="34038, 7904, 2654, ..."
-        value={
-          prod.recommendationsCsv ??
-          (prod.recommendations ?? []).map((r) => r.sku).join(", ")
-        }
-        onChange={(e) => updateProduct(i, { recommendationsCsv: e.target.value })}
-        onBlur={(e) => {
-          const list = parseCsv(e.target.value).map((sku: string) => ({ sku }));
-          updateProduct(i, {
-            recommendations: list,
-            recommendationsCsv: e.target.value,
-          });
-        }}
-      />
-    </Field>
-
-    {/* Accessories — CSV of SKUs */}
-    <Field label="Accessories (CSV of SKUs)">
-      <Input
-        className="font-mono"
-        placeholder="12345, 67890, ..."
-        value={
-          prod.accessoriesCsv ??
-          (prod.accessories ?? [])
-            .map((a) => a.accessorySku || "")
+  <div className="rounded-lg border border-gray-200 p-3">
+    <AccessoryChips
+      value={prod.accessories ?? []}
+      onChange={(next) => {
+        updateProduct(i, {
+          accessories: next,
+          accessoriesCsv: next
+            .map(a => a.accessorySku || "")
             .filter(Boolean)
-            .join(", ")
-        }
-        onChange={(e) => updateProduct(i, { accessoriesCsv: e.target.value })}
-        onBlur={(e) => {
-          const list = parseCsv(e.target.value).map((accessorySku: string) => ({
-            accessorySku,
-          }));
-          updateProduct(i, {
-            accessories: list,
-            accessoriesCsv: e.target.value,
-          });
-        }}
-      />
-    </Field>
-  </>
-))}
-
+            .join(", "),
+        });
+      }}
+    />
+    <p className="mt-2 text-[11px] text-gray-500">
+      Tip: use <em>Bulk add</em> to paste a list. You can add labels later.
+    </p>
+  </div>
+</section>
 
 
               {/* Cultures */}

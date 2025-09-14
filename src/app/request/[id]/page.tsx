@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SubmitToSmartlingPopup from "@/lib/components/SubmitToSmartlingPopup";
 import ManageRequestActions from "@/lib/components/ManageRequestActions";
+import { ActionBar, IconButton } from "@/lib/components/IconButton";
+import SmartlingIconTrigger from "@/lib/components/SmartlingIconTrigger";
+import { Plus, History, Send } from "lucide-react";
 import "../../globals.css";
+
+
 
 // tiny helper, server-safe
 function formatBytes(n: number | null | undefined) {
@@ -34,38 +39,42 @@ export default async function ManageRequest({
     return <div className="mx-auto max-w-5xl p-6">Invalid request id.</div>;
   }
 
-  const req = await prisma.request.findUnique({
-    where: { id: requestId },
-    include: {
-      submissions: {
-        orderBy: { createdAt: "desc" },
-        include: {
-          products: {
-            where: { isCurrent: true }, // only the current revision per SKU
-            orderBy: [{ sku: "asc" }],
-            include: {
-              accessories: true,
-              cultures: true,
-              recommendations: true,
+const req = await prisma.request.findUnique({
+  where: { id: requestId },
+  include: {
+    submissions: {
+      orderBy: { createdAt: "desc" },
+      include: {
+        products: {
+          where: { isCurrent: true },        // current revision per SKU
+          orderBy: [{ sku: "asc" }],
+          include: {
+            markets: {
+              orderBy: { market: "asc" },    // NEW: per-market values (US, CA, MX, GB, ...)
             },
+            accessories: true,
+            cultures: true,
+            recommendations: true,
           },
         },
       },
-      // use select so _count is allowed
-      promoUploads: {
-        orderBy: { uploadedAt: "desc" },
-        select: {
-          id: true,
-          kind: true,
-          fileName: true,
-          mimeType: true,
-          sizeBytes: true,
-          uploadedAt: true,
-          _count: { select: { lines: true } },
-        },
+    },
+    // use select so _count is allowed
+    promoUploads: {
+      orderBy: { uploadedAt: "desc" },
+      select: {
+        id: true,
+        kind: true,
+        fileName: true,
+        mimeType: true,
+        sizeBytes: true,
+        uploadedAt: true,
+        _count: { select: { lines: true } },
       },
     },
-  });
+  },
+});
+
 
   if (!req) {
     return <div className="mx-auto max-w-5xl p-6">Request not found.</div>;
@@ -96,40 +105,110 @@ export default async function ManageRequest({
     submissionIdRaw: number; // for URLs (same as product.submissionId)
   };
 
+  type MarketRow = Product["markets"][number];
+type MarketCode = MarketRow["market"]; // "US" | "CA" | "MX" | "DE" | ...
+
+const DEFAULT_CURRENCY: Record<string, string> = {
+  US: "USD",
+  CA: "CAD",
+  MX: "MXN",
+  GB: "GBP",
+  IE: "EUR",
+  NL: "EUR",
+  DE: "EUR",
+  PL: "PLN",
+  LT: "EUR",
+};
+
+function findMarket(p: Product, code: MarketCode) {
+  return p.markets?.find((m) => m.market === code);
+}
+
+function fmtMoney(
+  amount: unknown,
+  market: MarketCode,
+  currencyOverride?: string | null | undefined
+) {
+  if (amount == null) return "—";
+  const n = Number(amount as any);
+  if (!Number.isFinite(n)) return "—";
+  const code = currencyOverride || DEFAULT_CURRENCY[market] || "USD";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return n.toFixed(2);
+  }
+}
+
+function fmtUom(m?: MarketRow) {
+  if (!m) return "—";
+  const { uomValue, uomTitle } = m;
+  if (uomValue && uomTitle) return `${uomValue} ${uomTitle}`;
+  if (uomValue) return String(uomValue);
+  if (uomTitle) return String(uomTitle);
+  return "—";
+}
+
+function pickPrimaryForDates(p: Product): MarketRow | undefined {
+  // Prefer US → CA → first market
+  return findMarket(p, "US") || findMarket(p, "CA") || p.markets?.[0];
+}
+
+
   // Flatten all current products into table rows
   const rows: Row[] = req.submissions.flatMap((s: Submission) =>
-    s.products.map(
-      (p: Product): Row => ({
-        id: p.id,
-        sku: p.sku,
-        productName: p.productName,
-        shortDescription: p.shortDescription ?? "",
-        version: p.version,
-        isCurrent: p.isCurrent,
+  s.products.map((p: Product): Row => {
+    const mUS = findMarket(p, "US");
+    const mCA = findMarket(p, "CA");
+    const primary = pickPrimaryForDates(p);
 
-        uomUS:
-          p.uomTitleUS && p.uomValueUS ? `${p.uomValueUS} ${p.uomTitleUS}` : "—",
-        uomCA:
-          p.uomTitleCA && p.uomValueCA ? `${p.uomValueCA} ${p.uomTitleCA}` : "—",
-        savingsUS: p.noSavings ? "—" : p.savingsUS || "—",
-        savingsCA: p.noSavings ? "—" : p.savingsCA || "—",
-        onSaleDate: p.onSaleDate ? new Date(p.onSaleDate).toLocaleDateString() : "—",
-        offSaleDate: p.noEndDate
-          ? "No end"
-          : p.offSaleDate
-          ? new Date(p.offSaleDate).toLocaleDateString()
-          : "—",
+    const savingsUS =
+      mUS?.noSavings ? "—" : mUS?.savings != null ? fmtMoney(mUS.savings, "US", mUS?.currency) : "—";
 
-        submissionId: s.id,
-        submissionNote: s.note ?? "—",
-        submissionTime: new Date(s.createdAt).toLocaleString(),
-        submissionIdRaw: p.submissionId,
-      })
-    )
-  );
+    const savingsCA =
+      mCA?.noSavings ? "—" : mCA?.savings != null ? fmtMoney(mCA.savings, "CA", mCA?.currency) : "—";
+
+    const onSaleDate =
+      primary?.onSaleDate ? new Date(primary.onSaleDate).toLocaleDateString() : "—";
+
+    const offSaleDate = primary?.noEndDate
+      ? "No end"
+      : primary?.offSaleDate
+      ? new Date(primary.offSaleDate).toLocaleDateString()
+      : "—";
+
+    return {
+      id: p.id,
+      sku: p.sku,
+      productName: p.productName,
+      shortDescription: p.shortDescription ?? "",
+      version: p.version,
+      isCurrent: p.isCurrent,
+
+      // Derive from per-market rows (keeps your existing columns)
+      uomUS: fmtUom(mUS),
+      uomCA: fmtUom(mCA),
+      savingsUS,
+      savingsCA,
+      onSaleDate,
+      offSaleDate,
+
+      submissionId: s.id,
+      submissionNote: s.note ?? "—",
+      submissionTime: new Date(s.createdAt).toLocaleString(),
+      submissionIdRaw: p.submissionId,
+    };
+  })
+);
+
 
   return (
-    <div className="mx-auto max-w-5xl p-6 space-y-6">
+    <div className="mx-auto max-w-7xl p-6 space-y-6">
   {/* Header */}
 <header className="flex items-center justify-between">
   <h1 className="text-2xl font-semibold">Manage Request #{req.id}</h1>
@@ -215,8 +294,8 @@ export default async function ManageRequest({
                 <tr className="text-left">
                   <th className="p-3">SKU</th>
                   <th className="p-3">Product</th>
-                  <th className="p-3">UOM (US)</th>
-                  <th className="p-3">UOM (CA)</th>
+                  <th className="p-3">Quantity (US)</th>
+                  <th className="p-3">Quantity (CA)</th>
                   <th className="p-3">Savings (US)</th>
                   <th className="p-3">Savings (CA)</th>
                   <th className="p-3">On Sale</th>
@@ -250,23 +329,28 @@ export default async function ManageRequest({
                         v{r.version}
                       </span>
                     </td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/new?requestId=${req.id}&fromProductId=${r.id}&submissionId=${r.submissionIdRaw}`}
-                          className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
-                        >
-                          Add Revision
-                        </Link>
-                        <Link
-                          href={`/request/${req.id}/history?sku=${encodeURIComponent(r.sku)}&submissionId=${r.submissionIdRaw}`}
-                          className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
-                        >
-                          View History
-                        </Link>
-                        <SubmitToSmartlingPopup sku={r} />
-                      </div>
-                    </td>
+                   <td className="p-3 text-center">
+  <ActionBar>
+    <IconButton
+      href={`/new?requestId=${req.id}&fromProductId=${r.id}&submissionId=${r.submissionIdRaw}`}
+      title="Add revision"
+    >
+      <Plus className="h-4 w-4" />
+    </IconButton>
+
+    <IconButton
+      href={`/request/${req.id}/history?sku=${encodeURIComponent(r.sku)}&submissionId=${r.submissionIdRaw}`}
+      title="View history"
+    >
+      <History className="h-4 w-4" />
+    </IconButton>
+
+    {/* ✔️ now safe: only serializable props cross the boundary */}
+    <SmartlingIconTrigger sku={r} />
+  </ActionBar>
+</td>
+
+
                   </tr>
                 ))}
               </tbody>

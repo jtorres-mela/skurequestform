@@ -71,7 +71,6 @@ model Submission {
 
 /* ---------------------------------
    Individual SKU row in a submission
-   (unchanged)
    --------------------------------- */
 model SubmissionProduct {
   id                    Int       @id @default(autoincrement())
@@ -79,7 +78,7 @@ model SubmissionProduct {
 
   // Versioning
   sku                   String
-  version               Int       @default(1)   // 1 = original, 2+ = revisions
+  version               Int       @default(1)
   isCurrent             Boolean   @default(true)
 
   // Core
@@ -91,25 +90,9 @@ model SubmissionProduct {
   stamp                 String?
   offSaleMessage        String?
 
-  // Dates
-  onSaleDate            DateTime?
-  offSaleDate           DateTime?
-  noEndDate             Boolean   @default(false)
-
-  // Savings
-  savingsUS             String?
-  savingsCA             String?
-  noSavings             Boolean   @default(false)
-
   // PDP
   isPdpRequested        Boolean   @default(false)
   pdpWorkRequest        String?
-
-  // Unit of Measure
-  uomTitleUS            String?
-  uomValueUS            String?
-  uomTitleCA            String?
-  uomValueCA            String?
 
   // Translations gate & requested cultures (checkboxes)
   includeTranslations   Boolean   @default(false)
@@ -126,11 +109,47 @@ model SubmissionProduct {
   accessories           SubmissionProductAccessory[]
   cultures              SubmissionProductCulture[]
   recommendations       SubmissionProductRecommendation[]
+  markets               SubmissionProductMarket[]   // <— NEW
 
   @@index([submissionId])
   @@index([sku])
   @@unique([submissionId, sku, version])
 }
+
+enum Market {
+  US
+  CA
+  MX
+  GB
+  IE
+  NL
+  DE
+  PL
+  LT
+}
+
+model SubmissionProductMarket {
+  id          Int               @id @default(autoincrement())
+  productId   Int
+  market      Market
+  noSavings   Boolean           @default(false)
+  savings     Decimal?          
+  currency    String?           
+  uomValue    String?
+  uomTitle    String?
+  onSaleDate  DateTime?
+  offSaleDate DateTime?
+  noEndDate   Boolean           @default(false)
+
+  product     SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, market])
+  @@index([productId])
+  @@index([market])
+  @@index([onSaleDate])
+  @@index([offSaleDate])
+}
+
 
 model SubmissionProductRecommendation {
   id        Int               @id @default(autoincrement())
