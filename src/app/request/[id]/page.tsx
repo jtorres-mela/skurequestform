@@ -1,4 +1,3 @@
-// src/app/request/[id]/page.tsx
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SubmitToSmartlingPopup from "@/lib/components/SubmitToSmartlingPopup";
@@ -46,20 +45,17 @@ const req = await prisma.request.findUnique({
       orderBy: { createdAt: "desc" },
       include: {
         products: {
-          where: { isCurrent: true },        // current revision per SKU
+          where: { isCurrent: true },
           orderBy: [{ sku: "asc" }],
           include: {
-            markets: {
-              orderBy: { market: "asc" },    // NEW: per-market values (US, CA, MX, GB, ...)
-            },
             accessories: true,
             cultures: true,
             recommendations: true,
+            markets: true,
           },
         },
       },
     },
-    // use select so _count is allowed
     promoUploads: {
       orderBy: { uploadedAt: "desc" },
       select: {
@@ -72,8 +68,18 @@ const req = await prisma.request.findUnique({
         _count: { select: { lines: true } },
       },
     },
+
+    // ✅ new manual coupons relation
+    coupons: {
+      orderBy: { createdAt: "desc" },
+      include: {
+        cultures: true,
+        markets: true,
+      },
+    },
   },
 });
+
 
 
   if (!req) {
@@ -359,68 +365,170 @@ function pickPrimaryForDates(p: Product): MarketRow | undefined {
         )}
       </section>
 
-      {/* Promotion uploads */}
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-medium">Promotion uploads</h2>
-          <span className="text-xs text-gray-500">Latest first</span>
-        </div>
+     {/* Promotions (uploads + manual coupons) */}
+<section className="rounded-xl bg-white p-4 shadow-sm">
+  <div className="mb-3 flex items-center justify-between">
+    <h2 className="font-medium">Promotions</h2>
+    <Link
+      href={`/coupons/new?requestId=${req.id}`}
+      className="text-sm text-blue-700 hover:underline"
+    >
+      Add Coupon
+    </Link>
+  </div>
 
-        {!req.promoUploads?.length ? (
-          <p className="text-sm text-gray-500">No promotion files uploaded yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left">
-                  <th className="p-3">Type</th>
-                  <th className="p-3">File</th>
-                  <th className="p-3">Size</th>
-                  <th className="p-3">Rows</th>
-                  <th className="p-3">Uploaded</th>
-                  <th className="p-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {req.promoUploads.map((u) => (
-                  <tr key={u.id} className="border-t">
-                    <td className="p-3">
-                      <span
-                        className={
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium " +
-                          (u.kind === "COUPON_PROMO"
-                            ? "bg-rose-50 text-rose-700"
-                            : "bg-amber-50 text-amber-700")
-                        }
-                        title={u.kind}
-                      >
-                        {u.kind === "COUPON_PROMO" ? "Coupon" : "Incremental"}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-medium">{u.fileName}</div>
-                      <div className="text-xs text-gray-500">{u.mimeType || "—"}</div>
-                    </td>
-                    <td className="p-3">{formatBytes(u.sizeBytes)}</td>
-                    <td className="p-3">{u._count?.lines ?? 0}</td>
-                    <td className="p-3">{new Date(u.uploadedAt).toLocaleString()}</td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap items-center gap-2">
+  {(() => {
+    // Normalize both sources into a single list
+    type PromoRow =
+      | {
+          id: string;
+          kind: "INCREMENTAL_PROMO" | "COUPON_PROMO";
+          label: "Incremental" | "Coupon";
+          source: "upload";
+          fileName: string;
+          mimeType: string | null;
+          sizeBytes: number;
+          count: number; // lines
+          date: Date;
+          hrefDownload: string;
+        }
+      | {
+          id: string;
+          kind: "COUPON_PROMO";
+          label: "Coupon";
+          source: "manual";
+          code: string;
+          cultures: string[];
+          isActive: boolean;
+          date: Date;
+          hrefManage: string;
+        };
+
+    const uploads: PromoRow[] = (req.promoUploads ?? []).map((u) => ({
+      id: `upload:${u.id}`,
+      kind: u.kind,
+      label: u.kind === "INCREMENTAL_PROMO" ? "Incremental" : "Coupon",
+      source: "upload",
+      fileName: u.fileName,
+      mimeType: u.mimeType ?? null,
+      sizeBytes: u.sizeBytes,
+      count: u._count?.lines ?? 0,
+      date: new Date(u.uploadedAt),
+      hrefDownload: `/api/requests/${req.id}/promotions/${u.id}/download`,
+    }));
+
+    const coupons: PromoRow[] = (req.coupons ?? []).map((c) => ({
+      id: `coupon:${c.id}`,
+      kind: "COUPON_PROMO",
+      label: "Coupon",
+      source: "manual",
+      code: c.couponCode,
+      cultures: (c.cultures ?? []).map((cc) => cc.cultureCode),
+      isActive: true,
+      date: new Date(c.createdAt),
+      hrefManage: `/coupons/${c.id}`, // or `/coupons/${c.id}/edit` if you have an edit route
+    }));
+
+    const promos = [...uploads, ...coupons].sort(
+      (a, b) => b.date.getTime() - a.date.getTime()
+    );
+
+    if (!promos.length) {
+      return <p className="text-sm text-gray-500">No promotions yet.</p>;
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr className="text-left">
+              <th className="p-3">Type</th>
+              <th className="p-3">Identifier</th>
+              <th className="p-3">Items</th>
+              <th className="p-3">Created</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {promos.map((row) => {
+              const typeBadge =
+                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium " +
+                (row.label === "Coupon"
+                  ? "bg-rose-50 text-rose-700"
+                  : "bg-amber-50 text-amber-700");
+
+              return (
+                <tr key={row.id} className="border-t">
+                  {/* Type */}
+                  <td className="p-3">
+                    <span className={typeBadge}>{row.label}</span>
+                    {row.source === "upload" && (
+                      <span className="ml-2 text-[11px] text-gray-500">(upload)</span>
+                    )}
+                  </td>
+
+                  {/* Identifier (file or code) */}
+                  <td className="p-3">
+                    {row.source === "upload" ? (
+                      <>
+                        <div className="font-medium">{row.fileName}</div>
+                        <div className="text-xs text-gray-500">
+                          {row.mimeType || "—"}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="font-mono">{row.code}</div>
+                    )}
+                  </td>
+
+                  {/* Items (rows vs cultures) */}
+                  <td className="p-3">
+                    {row.source === "upload" ? (
+                      <span title="Rows in file">{row.count} rows</span>
+                    ) : (
+                      <span title="Cultures">{row.cultures.join(", ") || "—"}</span>
+                    )}
+                  </td>
+
+                  {/* Created */}
+                  <td className="p-3">{row.date.toLocaleString()}</td>
+
+                  {/* Actions */}
+                  <td className="p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {row.source === "upload" ? (
                         <Link
-                          href={`/api/requests/${req.id}/promotions/${u.id}/download`}
+                          href={row.hrefDownload}
                           className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
                         >
                           Download
                         </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                      ) : (
+                        <>
+                          <Link
+                            href={row.hrefManage}
+                            className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                          >
+                            Manage
+                          </Link>
+                          <span className="text-xs text-gray-500">
+                            {row.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  })()}
+</section>
+
+
     </div>
   );
 }

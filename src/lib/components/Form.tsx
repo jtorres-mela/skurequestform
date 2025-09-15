@@ -2,6 +2,38 @@
 import * as React from "react";
 import { Info } from "lucide-react";
 
+export const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className = "", ...props }, ref) => (
+  <input
+    ref={ref}
+    className={
+      "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm " +
+      "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1 " +
+      className
+    }
+    {...props}
+  />
+));
+Input.displayName = "Input";
+
+export const Textarea = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(({ className = "", ...props }, ref) => (
+  <textarea
+    ref={ref}
+    className={
+      "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm " +
+      "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1 " +
+      className
+    }
+    {...props}
+  />
+));
+Textarea.displayName = "Textarea";
+
 
 export function FormField({
   id,
@@ -77,10 +109,10 @@ export function InputShell({
 }) {
   return (
     <div
-      className={
-        "flex items-center rounded-md border px-2 " +
-        (disabled ? "bg-gray-50 text-gray-400" : "bg-white")
-      }
+      className={[
+        "flex items-center rounded-md border px-2",
+        disabled ? "bg-gray-50 text-gray-400" : "bg-white",
+      ].join(" ")}
     >
       {prefix && <span className="mr-1 text-gray-500">{prefix}</span>}
       <div className="flex-1">{children}</div>
@@ -89,7 +121,6 @@ export function InputShell({
   );
 }
 
-// Currency input with light formatting + validation
 export function CurrencyInput({
   id,
   value,
@@ -97,6 +128,7 @@ export function CurrencyInput({
   placeholder,
   onChange,
   onValidChange,
+  prefix,               // <-- NEW
 }: {
   id?: string;
   value: string;
@@ -104,6 +136,7 @@ export function CurrencyInput({
   placeholder?: string;
   onChange: (next: string) => void;
   onValidChange?: (isValid: boolean) => void;
+  prefix?: string;      // <-- NEW
 }) {
   const [local, setLocal] = React.useState(value ?? "");
   React.useEffect(() => setLocal(value ?? ""), [value]);
@@ -115,13 +148,14 @@ export function CurrencyInput({
     if (!local) return;
     const n = Number(local);
     if (Number.isFinite(n)) {
-      onChange(n.toFixed(2));
-      setLocal(n.toFixed(2));
+      const fixed = n.toFixed(2);
+      onChange(fixed);
+      setLocal(fixed);
     }
   };
 
   return (
-    <InputShell prefix="$" disabled={disabled}>
+    <InputShell prefix={prefix} disabled={disabled}>
       <input
         id={id}
         inputMode="decimal"

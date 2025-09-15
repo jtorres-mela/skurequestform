@@ -8,112 +8,116 @@ generator client {
   provider = "prisma-client-js"
 }
 
-/* ----------------------------
-   Enums (new)
-   ---------------------------- */
+// --- enums ---
+
 enum RequestType {
   OPEN_STOCK
   INCREMENTAL_PROMO
-  COUPON_PROMO
+  COUPON_PROMO // keep: Request may represent a coupon form workflow
 }
 
 enum PromotionKind {
-  INCREMENTAL_PROMO
-  COUPON_PROMO
+  INCREMENTAL_PROMO // ⬅ only uploads for incremental promos now
 }
 
-/* ----------------------------
-   Requests (parent “work item”)
-   ---------------------------- */
+/**
+ * ----------------------------
+ * Requests (parent “work item”)
+ * ----------------------------
+ */
 model Request {
-  id             Int          @id @default(autoincrement())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id             Int         @id @default(autoincrement())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
   requesterName  String?
   requesterEmail String?
   dueDate        DateTime?
-  adoId          String?      // Azure DevOps Work Request number (optional)
-  userStory      String?      // ADO User Story number (optional)
+  adoId          String?
+  userStory      String?
   notes          String?
+  type           RequestType @default(OPEN_STOCK)
 
-  // NEW: Type of request (default keeps old data valid)
-  type           RequestType  @default(OPEN_STOCK)
+  submissions  Submission[]
+  promoUploads PromotionUpload[]
 
-  // children
-  submissions    Submission[]
-  promoUploads   PromotionUpload[]   // NEW
+  // NEW manual coupon forms
+  coupons Coupon[] @relation("RequestCoupons")
 
   @@index([createdAt])
-  @@index([type])                    // helpful for filtering by type
+  @@index([type])
 }
 
-/* ----------------------------
-   Submissions (group of SKUs)
-   (unchanged)
-   ---------------------------- */
+/**
+ * ----------------------------
+ * Submissions (group of SKUs)
+ * (unchanged)
+ * ----------------------------
+ */
 model Submission {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   requester String?
   note      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // optional parent Request
   requestId Int?
-  request   Request?  @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  request   Request? @relation(fields: [requestId], references: [id], onDelete: SetNull)
 
   // children
-  products  SubmissionProduct[]
+  products SubmissionProduct[]
 
   @@index([createdAt])
   @@index([requestId])
 }
 
-/* ---------------------------------
-   Individual SKU row in a submission
-   --------------------------------- */
+/**
+ * ---------------------------------
+ * Individual SKU row in a submission
+ * ---------------------------------
+ */
 model SubmissionProduct {
-  id                    Int       @id @default(autoincrement())
-  submissionId          Int
+  id           Int @id @default(autoincrement())
+  submissionId Int
 
   // Versioning
-  sku                   String
-  version               Int       @default(1)
-  isCurrent             Boolean   @default(true)
+  sku       String
+  version   Int     @default(1)
+  isCurrent Boolean @default(true)
 
   // Core
-  productName           String
-  shortDescription      String?
-  longDescription       String?
+  productName      String
+  shortDescription String?
+  longDescription  String?
 
   // Marketing flags / dropdowns
-  stamp                 String?
-  offSaleMessage        String?
+  stamp          String?
+  offSaleMessage String?
 
   // PDP
-  isPdpRequested        Boolean   @default(false)
-  pdpWorkRequest        String?
+  isPdpRequested Boolean @default(false)
+  pdpWorkRequest String?
 
   // Translations gate & requested cultures (checkboxes)
-  includeTranslations   Boolean   @default(false)
+  includeTranslations   Boolean @default(false)
   requestedCulturesJson Json?
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Smartling job tracking
-  smartlingJobUids      Json?
+  smartlingJobUids Json?
 
   // relations
-  submission            Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  accessories           SubmissionProductAccessory[]
-  cultures              SubmissionProductCulture[]
-  recommendations       SubmissionProductRecommendation[]
-  markets               SubmissionProductMarket[]   // <— NEW
+  submission      Submission                        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  accessories     SubmissionProductAccessory[]
+  cultures        SubmissionProductCulture[]
+  recommendations SubmissionProductRecommendation[]
+  markets         SubmissionProductMarket[] // <— NEW
 
+  @@unique([submissionId, sku, version])
   @@index([submissionId])
   @@index([sku])
-  @@unique([submissionId, sku, version])
 }
 
 enum Market {
@@ -129,19 +133,19 @@ enum Market {
 }
 
 model SubmissionProductMarket {
-  id          Int               @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   productId   Int
   market      Market
-  noSavings   Boolean           @default(false)
-  savings     Decimal?          
-  currency    String?           
+  noSavings   Boolean   @default(false)
+  savings     Decimal?
+  currency    String?
   uomValue    String?
   uomTitle    String?
   onSaleDate  DateTime?
   offSaleDate DateTime?
-  noEndDate   Boolean           @default(false)
+  noEndDate   Boolean   @default(false)
 
-  product     SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, market])
   @@index([productId])
@@ -150,95 +154,137 @@ model SubmissionProductMarket {
   @@index([offSaleDate])
 }
 
-
 model SubmissionProductRecommendation {
-  id        Int               @id @default(autoincrement())
-  productId Int
+  id             Int     @id @default(autoincrement())
+  productId      Int
   recommendedSku String?
 
-  product   SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
 
 model SubmissionProductAccessory {
-  id             Int               @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   productId      Int
   accessorySku   String?
   accessoryLabel String?
 
-  product        SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
 
 model SubmissionProductCulture {
-  id              Int               @id @default(autoincrement())
+  id              Int     @id @default(autoincrement())
   productId       Int
-  cultureCode     String            // e.g., "en-US", "en-CA"
+  cultureCode     String // e.g., "en-US", "en-CA"
   translatedName  String?
   translatedShort String?
   translatedLong  String?
 
-  product         SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product SubmissionProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, cultureCode])
   @@index([cultureCode])
   @@index([productId])
 }
 
-/* ----------------------------
-   Promotion uploads
-   ---------------------------- */
+// ----------------------------
+// Coupons (form-based promos)
+// ----------------------------
+model Coupon {
+  id         Int      @id @default(autoincrement())
+  requestId  Int
+  couponCode String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cultures CouponCulture[]
+  markets  CouponMarketRow[]
+
+  request Request @relation(name: "RequestCoupons", fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([couponCode])
+}
+
+model CouponCulture {
+  id               Int     @id @default(autoincrement())
+  couponId         Int
+  cultureCode      String
+  name             String
+  shortDescription String?
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, cultureCode])
+  @@index([cultureCode])
+}
+
+model CouponMarketRow {
+  id       Int      @id @default(autoincrement())
+  couponId Int
+  market   Market
+  savings  Decimal?
+  currency String?
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, market])
+  @@index([market])
+}
+
+/**
+ * ----------------------------
+ * Promotion uploads
+ * ----------------------------
+ */
 model PromotionUpload {
-  id          Int            @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   requestId   Int
   kind        PromotionKind
   fileName    String
   mimeType    String
   sizeBytes   Int
   storagePath String
-  uploadedAt  DateTime       @default(now())
+  uploadedAt  DateTime      @default(now())
 
-   lines       PromotionLine[]
+  lines PromotionLine[]
 
-  request     Request        @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
   @@index([kind])
   @@index([uploadedAt])
 }
 
-/* ----------------------------
-   Promotion line items
-   ---------------------------- */
+/**
+ * ----------------------------
+ * Promotion line items
+ * ----------------------------
+ */
 model PromotionLine {
-  id              Int            @id @default(autoincrement())
-  uploadId        Int
-  type            PromotionKind  // INCREMENTAL_PROMO | COUPON_PROMO
-  sku             String
-  culture         String
+  id       Int           @id @default(autoincrement())
+  uploadId Int
+  type     PromotionKind // now always INCREMENTAL_PROMO
+  sku      String
+  culture  String
 
   // Localized text from the sheet (per-culture rows)
-  productName     String?
+  productName      String?
   shortDescription String?
 
-  // Coupon-only fields (keep as String for flexibility; you can switch to Decimal later)
-  savingsAmount   String?        // or Decimal? if you want strict numeric
-  couponCode      String?
+  // Free-form, kept
+  quantityRaw  String?
+  configurable String?
+  bomRaw       String?
 
-  // New free-form fields you wanted to keep as-is
-  quantityRaw     String?        // e.g. "2", "1-2", "3+1"
-  configurable    String?        // e.g. FSKU id
-  bomRaw          String?        // e.g. "3 x F590(42994, ...); 1 x F1301(...); ..."
+  uploadedRow Int?
 
-  // Useful for traceability back to the spreadsheet row
-  uploadedRow     Int?
+  createdAt DateTime @default(now())
 
-  createdAt       DateTime       @default(now())
-
-  // relation
-upload            PromotionUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  upload PromotionUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
 
   @@index([uploadId])
   @@index([sku])

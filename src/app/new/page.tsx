@@ -233,7 +233,22 @@ const UOM_PLACEHOLDER: Record<MarketCode, string> = {
   LT: "250 ml",
 };
 
+type CurrencyInfo = { sign: string; code: string };
 
+export const MARKET_CURRENCY: Record<MarketCode, CurrencyInfo> = {
+  US: { sign: "$", code: "USD" },
+  CA: { sign: "$", code: "CAD" },
+  MX: { sign: "$", code: "MXN" },
+  GB: { sign: "£", code: "GBP" },
+  IE: { sign: "€", code: "EUR" },
+  NL: { sign: "€", code: "EUR" },
+  DE: { sign: "€", code: "EUR" },
+  LT: { sign: "€", code: "EUR" },
+  PL: { sign: "zł", code: "PLN" },
+};
+
+export const currencyForMarket = (m: MarketCode): CurrencyInfo =>
+  MARKET_CURRENCY[m];
 
 
 const CULTURE_PRESETS: { key: string; label: string }[] = [
@@ -962,28 +977,42 @@ async function submit() {
 </section>
 
 
-
 {/* Savings Amount (per market) */}
 <section className="space-y-4 mt-6">
   <h3 className="text-base font-semibold">Savings Amount</h3>
   <p className="text-xs text-gray-600">
-    Shown on the savings callout; enter a dollar amount (e.g., 5.00), not a percentage.
+    Shown on the savings callout; enter a currency amount (e.g., 5.00), not a percentage.
   </p>
 
   <div className="grid gap-3 md:grid-cols-2">
     {marketsToRender(prod).map((mkt) => {
       const mv = getMarket(prod, mkt);
       const disabled = !!mv.noSavings;
+      const { sign, code } = currencyForMarket(mkt);
+
       return (
         <div key={mkt} className="space-y-2 rounded-lg border border-gray-200 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">{mkt}</span>
+            <span className="text-sm font-medium">
+              {mkt}
+              <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700" title={code}>
+                {sign} · {code}
+              </span>
+            </span>
+
             <label className="inline-flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 className="h-4 w-4"
                 checked={!!mv.noSavings}
-                onChange={(e) => updateMarket(i, mkt, { noSavings: e.target.checked, savings: e.target.checked ? "" : (mv.savings ?? "") })}
+                onChange={(e) =>
+                  updateMarket(i, mkt, {
+                    noSavings: e.target.checked,
+                    savings: e.target.checked ? "" : (mv.savings ?? ""),
+                    // also keep currency consistent when toggling back on
+                    currency: code,
+                  })
+                }
               />
               <span>No savings</span>
             </label>
@@ -992,10 +1021,18 @@ async function submit() {
           <CurrencyInput
             id={`savings-${mkt}-${i}`}
             value={disabled ? "" : (mv.savings ?? "")}
-            placeholder="5.00"
+            placeholder={`${sign} 5.00`}
             disabled={disabled}
-            onChange={(v) => updateMarket(i, mkt, { savings: v })}
+            // If your CurrencyInput supports a prefix, pass it:
+            prefix={sign}
+            onChange={(v) =>
+              updateMarket(i, mkt, {
+                savings: v,
+                currency: code, // store the currency code with the value
+              })
+            }
           />
+
           <p className="text-[11px] text-gray-500">
             Use up to 2 decimals. Leave blank if not applicable.
           </p>
@@ -1004,6 +1041,7 @@ async function submit() {
     })}
   </div>
 </section>
+
 
 
    {/* Recommended Products */}

@@ -98,8 +98,8 @@ function buildPreviewHtml(product: ProductForm, culture: string) {
                 <div class="preComponentLoader -productDetails -preComponentLoaded">
                     <section id="section-pdp-top" class="o-productDetails">
                         <div class="md:hidden">
-                            <h1 class="o-productDetails__heading">Modelo Mug</h1>
-                            <p class="o-productDetails__details"><span>Item: 10885</span> <span class="px-3"> | </span>
+                            <h1 class="o-productDetails__heading">${escapeHtml(product.productName)}</h1>
+                            <p class="o-productDetails__details"><span>Item: ${escapeHtml(product.sku || "")}</span> <span class="px-3"> | </span>
                                 <span>Size: <span class="font-bold">${escapeHtml(uom)}</span></span></p>
                             <div class="a-reviewSnippet hidden">
                                 <div id="pr-reviewSnippetMobile"></div>
