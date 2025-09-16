@@ -68,7 +68,11 @@ Create/update the files:
 ```bash
 # Database
 DATABASE_URL="file:./dev.db"
+```
 
+**.env.local**
+
+```bash
 # Email (dev proof-of-concept only)
 # Uses Ethereal test SMTP — no real mail is sent; a preview URL is returned.
 EMAIL_PROVIDER=ethereal
@@ -76,6 +80,7 @@ EMAIL_FROM="SKU Request <noreply@example.com>"
 
 # Optional: used to build absolute links in emails
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
 ### 3) Prisma
 ```bash
