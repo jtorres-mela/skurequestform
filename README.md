@@ -56,10 +56,26 @@ npm install
 ```
 
 ### 2) Environment
-Create `.env` in project root:
+
+We use two env files in development:
+
+- **`.env`** (checked in): database only — used by Prisma CLI.
+- **`.env.local`** (git-ignored): dev-only/secrets like email settings.
+
+Create/update the files:
+
+**.env**
 ```bash
+# Database
 DATABASE_URL="file:./dev.db"
-```
+
+# Email (dev proof-of-concept only)
+# Uses Ethereal test SMTP — no real mail is sent; a preview URL is returned.
+EMAIL_PROVIDER=ethereal
+EMAIL_FROM="SKU Request <noreply@example.com>"
+
+# Optional: used to build absolute links in emails
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
 ### 3) Prisma
 ```bash
