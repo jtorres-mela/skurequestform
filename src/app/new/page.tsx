@@ -471,18 +471,16 @@ export default function Page() {
   const [note, setNote] = React.useState("");
 
   // ✅ Initialize with the new shape (no noEndDate/noSavings/savingsUS/savingsCA at top level)
-  const [products, setProducts] = React.useState<ProductFormUI[]>([
-    { ...EMPTY_PRODUCT },
-    // If you want US/CA visible by default, use:
-     {
-       ...EMPTY_PRODUCT,
-       requestedCultures: ["US", "CA"],
-       markets: [
-         { market: "US", currency: "USD", noSavings: false, savings: null, uomValue: null, uomTitle: null, onSaleDate: null, offSaleDate: null, noEndDate: false },
-         { market: "CA", currency: "CAD", noSavings: false, savings: null, uomValue: null, uomTitle: null, onSaleDate: null, offSaleDate: null, noEndDate: false },
-       ],
-     },
-  ]);
+const [products, setProducts] = React.useState<ProductFormUI[]>(() => [
+  {
+    ...EMPTY_PRODUCT,
+    requestedCultures: ["US", "CA"],       // keep your defaults if desired
+    markets: [
+      { market: "US", currency: "USD", noSavings: false, savings: null, uomValue: null, uomTitle: null, onSaleDate: null, offSaleDate: null, noEndDate: false },
+      { market: "CA", currency: "CAD", noSavings: false, savings: null, uomValue: null, uomTitle: null, onSaleDate: null, offSaleDate: null, noEndDate: false },
+    ],
+  },
+]);
 
   const [status, setStatus] =
     React.useState<"idle" | "saving" | "done" | "error">("idle");
