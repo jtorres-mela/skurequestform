@@ -1054,7 +1054,7 @@ export default function Page() {
                     <div>
                       <h3 className="text-base font-semibold">Recommended Products</h3>
                       <p className="text-xs text-gray-600">
-                        Add SKUs to recommend with this product. Type a SKU and press Enter, or paste a list.
+                        Add SKUs to recommend with this product. Type a SKU and press Enter, or click Bulk add to paste a comma separated list of SKUs.
                       </p>
                     </div>
 
@@ -1081,7 +1081,7 @@ export default function Page() {
                     <div>
                       <h3 className="text-base font-semibold">Accessories</h3>
                       <p className="text-xs text-gray-600">
-                        Attach compatible accessories (SKU + optional label) shown alongside this SKU on PDP/placements.
+                        Include product accessories shown alongside this SKU on PDP/placements. Enter SKUs one by one or use the Bulk Add to paste in a comma separated list of SKUs.
                       </p>
                     </div>
 
@@ -1099,7 +1099,7 @@ export default function Page() {
                         }}
                       />
                       <p className="mt-2 text-[11px] text-gray-500">
-                        Tip: use <em>Bulk add</em> to paste a list. You can add labels later.
+                        Tip: use <em>Bulk add</em> to paste a list.
                       </p>
                     </div>
                   </section>
