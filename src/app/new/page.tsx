@@ -818,9 +818,7 @@ export default function Page() {
         required
       />
     </div>
-    <p className="text-[11px] text-gray-500">
-      Tip: paste from a spreadsheet—non-digits are removed automatically.
-    </p>
+    
   </section>
                      {/* Product Name */}
   <section className="space-y-2">
