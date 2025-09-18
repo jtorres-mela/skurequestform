@@ -45,7 +45,7 @@ export default function ManageRequestActions({ requestId, showAddSku = true }: P
 
         <button
           onClick={() => setOpenKind("INCREMENTAL_PROMO")}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 active:translate-y-px"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 active:translate-y-px hover:cursor-pointer"
           aria-label="Upload Incremental Promo"
         >
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-gray-100">

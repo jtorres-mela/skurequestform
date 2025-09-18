@@ -4,15 +4,14 @@ import SubmitToSmartlingPopup from "@/lib/components/SubmitToSmartlingPopup";
 import ManageRequestActions from "@/lib/components/ManageRequestActions";
 import { ActionBar, IconButton } from "@/lib/components/IconButton";
 import SmartlingIconTrigger from "@/lib/components/SmartlingIconTrigger";
-import { Plus, History, Send } from "lucide-react";
+import { Plus, History, Eye } from "lucide-react";
 import "../../globals.css";
-
-
 
 // tiny helper, server-safe
 function formatBytes(n: number | null | undefined) {
   if (!n || n <= 0) return "—";
-  const kb = 1024, mb = kb * 1024;
+  const kb = 1024,
+    mb = kb * 1024;
   if (n >= mb) return `${(n / mb).toFixed(1)} MB`;
   if (n >= kb) return `${(n / kb).toFixed(0)} KB`;
   return `${n} B`;
@@ -26,7 +25,6 @@ function fmtDateTime(d?: string | Date | null) {
   return d ? new Date(d).toLocaleString() : "—";
 }
 
-
 export default async function ManageRequest({
   params,
 }: {
@@ -38,49 +36,47 @@ export default async function ManageRequest({
     return <div className="mx-auto max-w-5xl p-6">Invalid request id.</div>;
   }
 
-const req = await prisma.request.findUnique({
-  where: { id: requestId },
-  include: {
-    submissions: {
-      orderBy: { createdAt: "desc" },
-      include: {
-        products: {
-          where: { isCurrent: true },
-          orderBy: [{ sku: "asc" }],
-          include: {
-            accessories: true,
-            cultures: true,
-            recommendations: true,
-            markets: true,
+  const req = await prisma.request.findUnique({
+    where: { id: requestId },
+    include: {
+      submissions: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          products: {
+            where: { isCurrent: true },
+            orderBy: [{ sku: "asc" }],
+            include: {
+              accessories: true,
+              cultures: true,
+              recommendations: true,
+              markets: true,
+            },
           },
         },
       },
-    },
-    promoUploads: {
-      orderBy: { uploadedAt: "desc" },
-      select: {
-        id: true,
-        kind: true,
-        fileName: true,
-        mimeType: true,
-        sizeBytes: true,
-        uploadedAt: true,
-        _count: { select: { lines: true } },
+      promoUploads: {
+        orderBy: { uploadedAt: "desc" },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          mimeType: true,
+          sizeBytes: true,
+          uploadedAt: true,
+          _count: { select: { lines: true } },
+        },
+      },
+
+      // ✅ new manual coupons relation
+      coupons: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          cultures: true,
+          markets: true,
+        },
       },
     },
-
-    // ✅ new manual coupons relation
-    coupons: {
-      orderBy: { createdAt: "desc" },
-      include: {
-        cultures: true,
-        markets: true,
-      },
-    },
-  },
-});
-
-
+  });
 
   if (!req) {
     return <div className="mx-auto max-w-5xl p-6">Request not found.</div>;
@@ -112,178 +108,186 @@ const req = await prisma.request.findUnique({
   };
 
   type MarketRow = Product["markets"][number];
-type MarketCode = MarketRow["market"]; // "US" | "CA" | "MX" | "DE" | ...
+  type MarketCode = MarketRow["market"]; // "US" | "CA" | "MX" | "DE" | ...
 
-const DEFAULT_CURRENCY: Record<string, string> = {
-  US: "USD",
-  CA: "CAD",
-  MX: "MXN",
-  GB: "GBP",
-  IE: "EUR",
-  NL: "EUR",
-  DE: "EUR",
-  PL: "PLN",
-  LT: "EUR",
-};
+  const DEFAULT_CURRENCY: Record<string, string> = {
+    US: "USD",
+    CA: "CAD",
+    MX: "MXN",
+    GB: "GBP",
+    IE: "EUR",
+    NL: "EUR",
+    DE: "EUR",
+    PL: "PLN",
+    LT: "EUR",
+  };
 
-function findMarket(p: Product, code: MarketCode) {
-  return p.markets?.find((m) => m.market === code);
-}
-
-function fmtMoney(
-  amount: unknown,
-  market: MarketCode,
-  currencyOverride?: string | null | undefined
-) {
-  if (amount == null) return "—";
-  const n = Number(amount as any);
-  if (!Number.isFinite(n)) return "—";
-  const code = currencyOverride || DEFAULT_CURRENCY[market] || "USD";
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: code,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return n.toFixed(2);
+  function findMarket(p: Product, code: MarketCode) {
+    return p.markets?.find((m) => m.market === code);
   }
-}
 
-function fmtUom(m?: MarketRow) {
-  if (!m) return "—";
-  const { uomValue, uomTitle } = m;
-  if (uomValue && uomTitle) return `${uomValue} ${uomTitle}`;
-  if (uomValue) return String(uomValue);
-  if (uomTitle) return String(uomTitle);
-  return "—";
-}
+  function fmtMoney(
+    amount: unknown,
+    market: MarketCode,
+    currencyOverride?: string | null | undefined
+  ) {
+    if (amount == null) return "—";
+    const n = Number(amount as any);
+    if (!Number.isFinite(n)) return "—";
+    const code = currencyOverride || DEFAULT_CURRENCY[market] || "USD";
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: code,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(n);
+    } catch {
+      return n.toFixed(2);
+    }
+  }
 
-function pickPrimaryForDates(p: Product): MarketRow | undefined {
-  // Prefer US → CA → first market
-  return findMarket(p, "US") || findMarket(p, "CA") || p.markets?.[0];
-}
+  function fmtUom(m?: MarketRow) {
+    if (!m) return "—";
+    const { uomValue, uomTitle } = m;
+    if (uomValue && uomTitle) return `${uomValue} ${uomTitle}`;
+    if (uomValue) return String(uomValue);
+    if (uomTitle) return String(uomTitle);
+    return "—";
+  }
 
+  function pickPrimaryForDates(p: Product): MarketRow | undefined {
+    // Prefer US → CA → first market
+    return findMarket(p, "US") || findMarket(p, "CA") || p.markets?.[0];
+  }
 
   // Flatten all current products into table rows
   const rows: Row[] = req.submissions.flatMap((s: Submission) =>
-  s.products.map((p: Product): Row => {
-    const mUS = findMarket(p, "US");
-    const mCA = findMarket(p, "CA");
-    const primary = pickPrimaryForDates(p);
+    s.products.map((p: Product): Row => {
+      const mUS = findMarket(p, "US");
+      const mCA = findMarket(p, "CA");
+      const primary = pickPrimaryForDates(p);
 
-    const savingsUS =
-      mUS?.noSavings ? "—" : mUS?.savings != null ? fmtMoney(mUS.savings, "US", mUS?.currency) : "—";
+      const savingsUS = mUS?.noSavings
+        ? "—"
+        : mUS?.savings != null
+        ? fmtMoney(mUS.savings, "US", mUS?.currency)
+        : "—";
 
-    const savingsCA =
-      mCA?.noSavings ? "—" : mCA?.savings != null ? fmtMoney(mCA.savings, "CA", mCA?.currency) : "—";
+      const savingsCA = mCA?.noSavings
+        ? "—"
+        : mCA?.savings != null
+        ? fmtMoney(mCA.savings, "CA", mCA?.currency)
+        : "—";
 
-    const onSaleDate =
-      primary?.onSaleDate ? new Date(primary.onSaleDate).toLocaleDateString() : "—";
+      const onSaleDate = primary?.onSaleDate
+        ? new Date(primary.onSaleDate).toLocaleDateString()
+        : "—";
 
-    const offSaleDate = primary?.noEndDate
-      ? "No end"
-      : primary?.offSaleDate
-      ? new Date(primary.offSaleDate).toLocaleDateString()
-      : "—";
+      const offSaleDate = primary?.noEndDate
+        ? "No end"
+        : primary?.offSaleDate
+        ? new Date(primary.offSaleDate).toLocaleDateString()
+        : "—";
 
-    return {
-      id: p.id,
-      sku: p.sku,
-      productName: p.productName,
-      shortDescription: p.shortDescription ?? "",
-      version: p.version,
-      isCurrent: p.isCurrent,
+      return {
+        id: p.id,
+        sku: p.sku,
+        productName: p.productName,
+        shortDescription: p.shortDescription ?? "",
+        version: p.version,
+        isCurrent: p.isCurrent,
 
-      // Derive from per-market rows (keeps your existing columns)
-      uomUS: fmtUom(mUS),
-      uomCA: fmtUom(mCA),
-      savingsUS,
-      savingsCA,
-      onSaleDate,
-      offSaleDate,
+        // Derive from per-market rows (keeps your existing columns)
+        uomUS: fmtUom(mUS),
+        uomCA: fmtUom(mCA),
+        savingsUS,
+        savingsCA,
+        onSaleDate,
+        offSaleDate,
 
-      submissionId: s.id,
-      submissionNote: s.note ?? "—",
-      submissionTime: new Date(s.createdAt).toLocaleString(),
-      submissionIdRaw: p.submissionId,
-    };
-  })
-);
-
+        submissionId: s.id,
+        submissionNote: s.note ?? "—",
+        submissionTime: new Date(s.createdAt).toLocaleString(),
+        submissionIdRaw: p.submissionId,
+      };
+    })
+  );
 
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-6">
-  {/* Header */}
-<header className="flex items-center justify-between">
-  <h1 className="text-2xl font-semibold">Manage Request #{req.id}</h1>
-  <ManageRequestActions requestId={req.id} />
-</header>
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold dark:text-gray-200">Manage Request #{req.id}</h1>
+        <ManageRequestActions requestId={req.id} />
+      </header>
 
-{/* Request details (full width) */}
-<section className="rounded-xl bg-white p-4 shadow-sm">
-  <h2 className="mb-3 font-medium">Request details</h2>
+      {/* Request details (full width) */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <h2 className="mb-3 font-medium">Request details</h2>
 
-  {/* Responsive 2–3 column grid of fields */}
-  <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-      <dt className="text-gray-500">Requester</dt>
-      <dd className="mt-0.5 text-gray-900">{req.requesterName || "—"}</dd>
-    </div>
+        {/* Responsive 2–3 column grid of fields */}
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+            <dt className="text-gray-500">Requester</dt>
+            <dd className="mt-0.5 text-gray-900">{req.requesterName || "—"}</dd>
+          </div>
 
-    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-      <dt className="text-gray-500">Email</dt>
-      <dd className="mt-0.5">
-        {req.requesterEmail ? (
-          <a
-            href={`mailto:${req.requesterEmail}`}
-            className="text-blue-700 hover:underline"
-          >
-            {req.requesterEmail}
-          </a>
+          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+            <dt className="text-gray-500">Email</dt>
+            <dd className="mt-0.5">
+              {req.requesterEmail ? (
+                <a
+                  href={`mailto:${req.requesterEmail}`}
+                  className="text-blue-700 hover:underline"
+                >
+                  {req.requesterEmail}
+                </a>
+              ) : (
+                <span className="text-gray-900">—</span>
+              )}
+            </dd>
+          </div>
+
+          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+            <dt className="text-gray-500">Due</dt>
+            <dd className="mt-0.5 text-gray-900">{fmtDate(req.dueDate)}</dd>
+          </div>
+
+          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+            <dt className="text-gray-500">Created</dt>
+            <dd className="mt-0.5 text-gray-900">
+              {fmtDateTime(req.createdAt)}
+            </dd>
+          </div>
+
+          {req.adoId && (
+            <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+              <dt className="text-gray-500">ADO Work Req</dt>
+              <dd className="mt-0.5 text-gray-900">{req.adoId}</dd>
+            </div>
+          )}
+
+          {req.userStory && (
+            <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+              <dt className="text-gray-500">ADO User Story</dt>
+              <dd className="mt-0.5 text-gray-900">{req.userStory}</dd>
+            </div>
+          )}
+        </dl>
+      </section>
+
+      {/* Notes (full width, beneath details) */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <h2 className="mb-2 font-medium">Notes</h2>
+        {req.notes && req.notes.trim().length ? (
+          <p className="whitespace-pre-wrap text-sm text-gray-700">
+            {req.notes}
+          </p>
         ) : (
-          <span className="text-gray-900">—</span>
+          <p className="text-sm text-gray-500">No notes added.</p>
         )}
-      </dd>
-    </div>
-
-    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-      <dt className="text-gray-500">Due</dt>
-      <dd className="mt-0.5 text-gray-900">{fmtDate(req.dueDate)}</dd>
-    </div>
-
-    <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-      <dt className="text-gray-500">Created</dt>
-      <dd className="mt-0.5 text-gray-900">{fmtDateTime(req.createdAt)}</dd>
-    </div>
-
-    {req.adoId && (
-      <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-        <dt className="text-gray-500">ADO Work Req</dt>
-        <dd className="mt-0.5 text-gray-900">{req.adoId}</dd>
-      </div>
-    )}
-
-    {req.userStory && (
-      <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-        <dt className="text-gray-500">ADO User Story</dt>
-        <dd className="mt-0.5 text-gray-900">{req.userStory}</dd>
-      </div>
-    )}
-  </dl>
-</section>
-
-{/* Notes (full width, beneath details) */}
-<section className="rounded-xl bg-white p-4 shadow-sm">
-  <h2 className="mb-2 font-medium">Notes</h2>
-  {req.notes && req.notes.trim().length ? (
-    <p className="whitespace-pre-wrap text-sm text-gray-700">{req.notes}</p>
-  ) : (
-    <p className="text-sm text-gray-500">No notes added.</p>
-  )}
-</section>
-    
+      </section>
 
       {/* SKUs table */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
@@ -318,7 +322,9 @@ function pickPrimaryForDates(p: Product): MarketRow | undefined {
                       <div className="font-medium">{r.productName}</div>
                       <div className="text-xs text-gray-500">
                         Submission #{r.submissionId} · {r.submissionTime}
-                        {r.submissionNote !== "—" ? ` · ${r.submissionNote}` : ""}
+                        {r.submissionNote !== "—"
+                          ? ` · ${r.submissionNote}`
+                          : ""}
                       </div>
                     </td>
                     <td className="p-3">{r.uomUS}</td>
@@ -329,34 +335,41 @@ function pickPrimaryForDates(p: Product): MarketRow | undefined {
                     <td className="p-3">{r.offSaleDate}</td>
                     <td className="p-3">
                       <span
-                        title={`Version ${r.version}${r.isCurrent ? " (current)" : ""}`}
+                        title={`Version ${r.version}${
+                          r.isCurrent ? " (current)" : ""
+                        }`}
                         className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
                       >
                         v{r.version}
                       </span>
                     </td>
-                   <td className="p-3 text-center">
-  <ActionBar>
-    <IconButton
-      href={`/new?requestId=${req.id}&fromProductId=${r.id}&submissionId=${r.submissionIdRaw}`}
-      title="Add revision"
-    >
-      <Plus className="h-4 w-4" />
-    </IconButton>
+                    <td className="p-3 text-center">
+                      <ActionBar>
+                        <IconButton href={`/request/skuInfo/${r.id}`} title="View SKU information">
+                          <Eye className="h-4 w-4" />
+                        </IconButton>
+                        <IconButton
+                          href={`/new?requestId=${req.id}&fromProductId=${r.id}&submissionId=${r.submissionIdRaw}`}
+                          title="Add revision"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </IconButton>
 
-    <IconButton
-      href={`/request/${req.id}/history?sku=${encodeURIComponent(r.sku)}&submissionId=${r.submissionIdRaw}`}
-      title="View history"
-    >
-      <History className="h-4 w-4" />
-    </IconButton>
+                        <IconButton
+                          href={`/request/${
+                            req.id
+                          }/history?sku=${encodeURIComponent(
+                            r.sku
+                          )}&submissionId=${r.submissionIdRaw}`}
+                          title="View history"
+                        >
+                          <History className="h-4 w-4" />
+                        </IconButton>
 
-    {/* ✔️ now safe: only serializable props cross the boundary */}
-    <SmartlingIconTrigger sku={r} />
-  </ActionBar>
-</td>
-
-
+                        {/* ✔️ now safe: only serializable props cross the boundary */}
+                        {/* <SmartlingIconTrigger sku={r} /> */}
+                      </ActionBar>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -365,170 +378,172 @@ function pickPrimaryForDates(p: Product): MarketRow | undefined {
         )}
       </section>
 
-     {/* Promotions (uploads + manual coupons) */}
-<section className="rounded-xl bg-white p-4 shadow-sm">
-  <div className="mb-3 flex items-center justify-between">
-    <h2 className="font-medium">Promotions</h2>
-    <Link
-      href={`/coupons/new?requestId=${req.id}`}
-      className="text-sm text-blue-700 hover:underline"
-    >
-      Add Coupon
-    </Link>
-  </div>
+      {/* Promotions (uploads + manual coupons) */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium">Promotions</h2>
+          <Link
+            href={`/coupons/new?requestId=${req.id}`}
+            className="text-sm text-blue-700 hover:underline"
+          >
+            Add Coupon
+          </Link>
+        </div>
 
-  {(() => {
-    // Normalize both sources into a single list
-    type PromoRow =
-      | {
-          id: string;
-          kind: "INCREMENTAL_PROMO" | "COUPON_PROMO";
-          label: "Incremental" | "Coupon";
-          source: "upload";
-          fileName: string;
-          mimeType: string | null;
-          sizeBytes: number;
-          count: number; // lines
-          date: Date;
-          hrefDownload: string;
-        }
-      | {
-          id: string;
-          kind: "COUPON_PROMO";
-          label: "Coupon";
-          source: "manual";
-          code: string;
-          cultures: string[];
-          isActive: boolean;
-          date: Date;
-          hrefManage: string;
-        };
+        {(() => {
+          // Normalize both sources into a single list
+          type PromoRow =
+            | {
+                id: string;
+                kind: "INCREMENTAL_PROMO" | "COUPON_PROMO";
+                label: "Incremental" | "Coupon";
+                source: "upload";
+                fileName: string;
+                mimeType: string | null;
+                sizeBytes: number;
+                count: number; // lines
+                date: Date;
+                hrefDownload: string;
+              }
+            | {
+                id: string;
+                kind: "COUPON_PROMO";
+                label: "Coupon";
+                source: "manual";
+                code: string;
+                cultures: string[];
+                isActive: boolean;
+                date: Date;
+                hrefManage: string;
+              };
 
-    const uploads: PromoRow[] = (req.promoUploads ?? []).map((u) => ({
-      id: `upload:${u.id}`,
-      kind: u.kind,
-      label: u.kind === "INCREMENTAL_PROMO" ? "Incremental" : "Coupon",
-      source: "upload",
-      fileName: u.fileName,
-      mimeType: u.mimeType ?? null,
-      sizeBytes: u.sizeBytes,
-      count: u._count?.lines ?? 0,
-      date: new Date(u.uploadedAt),
-      hrefDownload: `/api/requests/${req.id}/promotions/${u.id}/download`,
-    }));
+          const uploads: PromoRow[] = (req.promoUploads ?? []).map((u) => ({
+            id: `upload:${u.id}`,
+            kind: u.kind,
+            label: u.kind === "INCREMENTAL_PROMO" ? "Incremental" : "Coupon",
+            source: "upload",
+            fileName: u.fileName,
+            mimeType: u.mimeType ?? null,
+            sizeBytes: u.sizeBytes,
+            count: u._count?.lines ?? 0,
+            date: new Date(u.uploadedAt),
+            hrefDownload: `/api/requests/${req.id}/promotions/${u.id}/download`,
+          }));
 
-    const coupons: PromoRow[] = (req.coupons ?? []).map((c) => ({
-      id: `coupon:${c.id}`,
-      kind: "COUPON_PROMO",
-      label: "Coupon",
-      source: "manual",
-      code: c.couponCode,
-      cultures: (c.cultures ?? []).map((cc) => cc.cultureCode),
-      isActive: true,
-      date: new Date(c.createdAt),
-      hrefManage: `/coupons/${c.id}`, // or `/coupons/${c.id}/edit` if you have an edit route
-    }));
+          const coupons: PromoRow[] = (req.coupons ?? []).map((c) => ({
+            id: `coupon:${c.id}`,
+            kind: "COUPON_PROMO",
+            label: "Coupon",
+            source: "manual",
+            code: c.couponCode,
+            cultures: (c.cultures ?? []).map((cc) => cc.cultureCode),
+            isActive: true,
+            date: new Date(c.createdAt),
+            hrefManage: `/coupons/${c.id}`, // or `/coupons/${c.id}/edit` if you have an edit route
+          }));
 
-    const promos = [...uploads, ...coupons].sort(
-      (a, b) => b.date.getTime() - a.date.getTime()
-    );
+          const promos = [...uploads, ...coupons].sort(
+            (a, b) => b.date.getTime() - a.date.getTime()
+          );
 
-    if (!promos.length) {
-      return <p className="text-sm text-gray-500">No promotions yet.</p>;
-    }
+          if (!promos.length) {
+            return <p className="text-sm text-gray-500">No promotions yet.</p>;
+          }
 
-    return (
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr className="text-left">
-              <th className="p-3">Type</th>
-              <th className="p-3">Identifier</th>
-              <th className="p-3">Items</th>
-              <th className="p-3">Created</th>
-              <th className="p-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {promos.map((row) => {
-              const typeBadge =
-                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium " +
-                (row.label === "Coupon"
-                  ? "bg-rose-50 text-rose-700"
-                  : "bg-amber-50 text-amber-700");
+          return (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="text-left">
+                    <th className="p-3">Type</th>
+                    <th className="p-3">Identifier</th>
+                    <th className="p-3">Items</th>
+                    <th className="p-3">Created</th>
+                    <th className="p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {promos.map((row) => {
+                    const typeBadge =
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium " +
+                      (row.label === "Coupon"
+                        ? "bg-rose-50 text-rose-700"
+                        : "bg-amber-50 text-amber-700");
 
-              return (
-                <tr key={row.id} className="border-t">
-                  {/* Type */}
-                  <td className="p-3">
-                    <span className={typeBadge}>{row.label}</span>
-                    {row.source === "upload" && (
-                      <span className="ml-2 text-[11px] text-gray-500">(upload)</span>
-                    )}
-                  </td>
+                    return (
+                      <tr key={row.id} className="border-t">
+                        {/* Type */}
+                        <td className="p-3">
+                          <span className={typeBadge}>{row.label}</span>
+                          {row.source === "upload" && (
+                            <span className="ml-2 text-[11px] text-gray-500">
+                              (upload)
+                            </span>
+                          )}
+                        </td>
 
-                  {/* Identifier (file or code) */}
-                  <td className="p-3">
-                    {row.source === "upload" ? (
-                      <>
-                        <div className="font-medium">{row.fileName}</div>
-                        <div className="text-xs text-gray-500">
-                          {row.mimeType || "—"}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="font-mono">{row.code}</div>
-                    )}
-                  </td>
+                        {/* Identifier (file or code) */}
+                        <td className="p-3">
+                          {row.source === "upload" ? (
+                            <>
+                              <div className="font-medium">{row.fileName}</div>
+                              <div className="text-xs text-gray-500">
+                                {row.mimeType || "—"}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="font-mono">{row.code}</div>
+                          )}
+                        </td>
 
-                  {/* Items (rows vs cultures) */}
-                  <td className="p-3">
-                    {row.source === "upload" ? (
-                      <span title="Rows in file">{row.count} rows</span>
-                    ) : (
-                      <span title="Cultures">{row.cultures.join(", ") || "—"}</span>
-                    )}
-                  </td>
+                        {/* Items (rows vs cultures) */}
+                        <td className="p-3">
+                          {row.source === "upload" ? (
+                            <span title="Rows in file">{row.count} rows</span>
+                          ) : (
+                            <span title="Cultures">
+                              {row.cultures.join(", ") || "—"}
+                            </span>
+                          )}
+                        </td>
 
-                  {/* Created */}
-                  <td className="p-3">{row.date.toLocaleString()}</td>
+                        {/* Created */}
+                        <td className="p-3">{row.date.toLocaleString()}</td>
 
-                  {/* Actions */}
-                  <td className="p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {row.source === "upload" ? (
-                        <Link
-                          href={row.hrefDownload}
-                          className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
-                        >
-                          Download
-                        </Link>
-                      ) : (
-                        <>
-                          <Link
-                            href={row.hrefManage}
-                            className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
-                          >
-                            Manage
-                          </Link>
-                          <span className="text-xs text-gray-500">
-                            {row.isActive ? "Active" : "Inactive"}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  })()}
-</section>
-
-
+                        {/* Actions */}
+                        <td className="p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {row.source === "upload" ? (
+                              <Link
+                                href={row.hrefDownload}
+                                className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                              >
+                                Download
+                              </Link>
+                            ) : (
+                              <>
+                                <Link
+                                  href={row.hrefManage}
+                                  className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                                >
+                                  Manage
+                                </Link>
+                                <span className="text-xs text-gray-500">
+                                  {row.isActive ? "Active" : "Inactive"}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </section>
     </div>
   );
 }

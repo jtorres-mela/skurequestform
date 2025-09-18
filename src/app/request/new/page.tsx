@@ -47,9 +47,7 @@ export default function NewRequestPage() {
       const res = await fetch("/api/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-
         
-
         body: JSON.stringify({
           requesterName,
           requesterEmail,

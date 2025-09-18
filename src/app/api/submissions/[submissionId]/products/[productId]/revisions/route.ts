@@ -348,6 +348,8 @@ export async function POST(
         (cur.requestedCulturesJson as unknown) ??
         undefined;
 
+      console.log(cur.submissionId);
+
       // Create new revision
       return tx.submissionProduct.create({
         data: {
