@@ -291,3 +291,18 @@ model PromotionLine {
   @@index([culture])
   @@index([type])
 }
+
+
+model CatalogIndex {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  imageId      String?
+  imagePath    String?   // e.g., /images/abc.jpg or full URL
+  productTitle String?
+
+  source       String?   // optional: where the dump came from
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([productTitle])
+}
