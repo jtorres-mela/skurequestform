@@ -137,80 +137,168 @@ async function buildDocxBuffer(prod: any) {
 async function buildPdfBuffer(prod: any) {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
+  // Create doc + fonts
   const doc = await PDFDocument.create();
-  const page = doc.addPage([612, 792]); // Letter
+  let page = doc.addPage([612, 792]); // US Letter (72dpi): 8.5" x 11"
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  let y = 760;
-  const left = 40;
-  const line = (text: string, bold = false, dy = 16) => {
-    y -= dy;
-    page.drawText(text, {
-      x: left,
-      y,
-      size: 11,
-      font: bold ? fontBold : font,
-      color: rgb(0, 0, 0),
-      maxWidth: 532,
-    });
+  // Layout constants
+  const margin = { top: 56, right: 40, bottom: 56, left: 40 };
+  const leading = 16;       // line height
+  const titleSize = 16;
+  const h2Size = 13;
+  const bodySize = 11;
+
+  let y = page.getHeight() - margin.top;
+  const contentWidth = page.getWidth() - margin.left - margin.right;
+
+  // --- utils ---------------------------------------------------------------
+  const stripHtml = (html: string) => {
+    return (html || "")
+      .replace(/<\/(p|div|h\d|li)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<li>/gi, "• ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s+\n/g, "\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
   };
 
-  line(`SKU ${prod.sku} — ${prod.productName}`, true, 0);
-  line(`Submission #${prod.submission?.id ?? "—"}  |  Request #${prod.submission?.requestId ?? "—"}`);
+  // Split a paragraph into lines that fit contentWidth with current font/size
+  function wrapText(text: string, size: number, bold = false): string[] {
+    const f = bold ? fontBold : font;
+    const lines: string[] = [];
 
-  y -= 8;
-  line("Core Details", true, 22);
-  line(`SKU: ${prod.sku}`);
-  line(`Stamp: ${prod.stamp ?? "—"}`);
-  line(`Off-Sale Message: ${prod.offSaleMessage ?? "—"}`);
+    // Respect explicit newlines (from stripped HTML)
+    const paras = (text || "").split(/\r?\n/);
+    for (const para of paras) {
+      const words = para.split(/\s+/).filter(Boolean);
+      if (!words.length) { lines.push(""); continue; }
 
-  y -= 8;
-  line("Short Description", true, 22);
-  line(`${prod.shortDescription ?? "—"}`);
+      let current = "";
+      for (const w of words) {
+        const attempt = current ? current + " " + w : w;
+        const width = f.widthOfTextAtSize(attempt, size);
+        if (width <= contentWidth) {
+          current = attempt;
+        } else {
+          if (current) lines.push(current);
+          // Hard-break individual very-long words
+          let rest = w;
+          while (f.widthOfTextAtSize(rest, size) > contentWidth) {
+            // crude proportional cut based on widths
+            const ratio = contentWidth / f.widthOfTextAtSize(rest, size);
+            const cut = Math.max(1, Math.floor(ratio * rest.length));
+            lines.push(rest.slice(0, cut));
+            rest = rest.slice(cut);
+          }
+          current = rest;
+        }
+      }
+      if (current) lines.push(current);
+    }
+    return lines;
+  }
 
-  y -= 8;
-  line("Long Description", true, 22);
-  (prod.longDescription ?? "—")
-  .replace(/\s+/g, " ")
-  .split(/(.{1,90})(?:\s|$)/g)
-  .filter(Boolean)
-  .forEach((row: string) => line(row));
+  function ensureSpace(lineCount: number) {
+    if (y - lineCount * leading < margin.bottom) {
+      page = doc.addPage([612, 792]);
+      y = page.getHeight() - margin.top;
+    }
+  }
 
-  y -= 8;
-  line("Markets", true, 22);
-  (prod.markets ?? []).forEach((m: any) => {
-    const uom = [m.uomValue, m.uomTitle].filter(Boolean).join(" ") || "—";
-    line(
-      `${m.market} | UOM: ${uom} | ${m.currency ?? "USD"} | Savings: ${
-        m.noSavings ? "—" : fmtMoney(m.savings, m.currency ?? "USD")
-      } | On: ${fmtDate(m.onSaleDate)} | Off: ${m.noEndDate ? "No end" : fmtDate(m.offSaleDate)}`
-    );
-  });
-  if (!(prod.markets ?? []).length) line("—");
+  function drawLines(lines: string[], size: number, bold = false) {
+    ensureSpace(lines.length);
+    const f = bold ? fontBold : font;
+    for (const s of lines) {
+      page.drawText(s, {
+        x: margin.left,
+        y,
+        size,
+        font: f,
+        color: rgb(0, 0, 0),
+      });
+      y -= leading;
+    }
+  }
 
-  y -= 8;
-  line("Translations", true, 22);
-  (prod.cultures ?? []).forEach((c: any) =>
-    line(`${c.cultureCode}: ${c.translatedName ?? "—"} | ${c.translatedShort ?? "—"}`)
-  );
-  if (!(prod.cultures ?? []).length) line("—");
+  function heading(text: string) {
+    y -= 8; // spacing before headings
+    drawLines(wrapText(text, h2Size, true), h2Size, true);
+  }
 
-  y -= 8;
-  line("Accessories", true, 22);
-  (prod.accessories ?? []).forEach((a: any) =>
-    line([a.accessorySku, a.accessoryLabel].filter(Boolean).join(" — "))
-  );
-  if (!(prod.accessories ?? []).length) line("—");
+  function para(text: string, opts?: { bold?: boolean; size?: number }) {
+    const size = opts?.size ?? bodySize;
+    const bold = !!opts?.bold;
+    drawLines(wrapText(text, size, bold), size, bold);
+  }
 
-  y -= 8;
-  line("Recommended Products", true, 22);
-  (prod.recommendations ?? []).forEach((r: any) => line(r.recommendedSku ?? "—"));
-  if (!(prod.recommendations ?? []).length) line("—");
+  // --- content -------------------------------------------------------------
+  para(`SKU ${prod.sku} — ${prod.productName}`, { bold: true, size: titleSize });
+  para(`Submission #${prod.submission?.id ?? "—"}  |  Request #${prod.submission?.requestId ?? "—"}`);
 
-  const pdf = await doc.save();
-  return Buffer.from(pdf);
+  heading("Core Details");
+  para(`SKU: ${prod.sku}`);
+  para(`Stamp: ${prod.stamp ?? "—"}`);
+  para(`Off-Sale Message: ${prod.offSaleMessage ?? "—"}`);
+
+  heading("Short Description");
+  para(stripHtml(prod.shortDescription ?? "—"));
+
+  heading("Long Description");
+  para(stripHtml(prod.longDescription ?? "—"));
+
+  heading("Markets");
+  const markets = prod.markets ?? [];
+  if (!markets.length) {
+    para("—");
+  } else {
+    for (const m of markets) {
+      const uom = [m.uomValue, m.uomTitle].filter(Boolean).join(" ") || "—";
+      para(
+        `${m.market} | UOM: ${uom} | ${m.currency ?? "USD"} | ` +
+          `Savings: ${m.noSavings ? "—" : fmtMoney(m.savings, m.currency ?? "USD")} | ` +
+          `On: ${fmtDate(m.onSaleDate)} | Off: ${m.noEndDate ? "No end" : fmtDate(m.offSaleDate)}`
+      );
+    }
+  }
+
+  heading("Translations");
+  const cultures = prod.cultures ?? [];
+  if (!cultures.length) {
+    para("—");
+  } else {
+    for (const c of cultures) {
+      para(`${c.cultureCode}: ${c.translatedName ?? "—"} | ${c.translatedShort ?? "—"}`);
+    }
+  }
+
+  heading("Accessories");
+  const accs = prod.accessories ?? [];
+  if (!accs.length) {
+    para("—");
+  } else {
+    for (const a of accs) para([a.accessorySku, a.accessoryLabel].filter(Boolean).join(" — "));
+  }
+
+  heading("Recommended Products");
+  const recs = prod.recommendations ?? [];
+  if (!recs.length) {
+    para("—");
+  } else {
+    for (const r of recs) para(r.recommendedSku ?? "—");
+  }
+
+  const pdfBytes = await doc.save();
+  // Return a Node buffer; your handler already sends it with NextResponse
+  return Buffer.from(pdfBytes);
 }
+
 
 // --- GET /export?format=docx|pdf ---
 export async function GET(
