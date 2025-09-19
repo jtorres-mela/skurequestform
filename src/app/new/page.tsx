@@ -779,120 +779,353 @@ export default function Page() {
                     </button>
                   </div>
 
-                  <div className="shadow-sm rounded-xl p-3 bg-gray-50">
-                    <div className="mb-2 text-sm font-medium">Requested Cultures</div>
-                    <CulturePicker
-                      value={prod.requestedCultures}
-                      onChange={(next) => {
-                        const cp = [...products];
-                        cp[i].requestedCultures = next;
-                        setProducts(cp);
-                      }}
-                    />
-                  </div>
+                  <section className="space-y-2">
+  <div>
+    <h3 className="text-base font-semibold">Requested Cultures</h3>
+    <p className="text-xs text-gray-600">Choose the cultures this SKU will be available. (e.g., US, CA).</p>
+  </div>
+  <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <CulturePicker
+      value={prod.requestedCultures}
+      onChange={(next) => {
+        const cp = [...products];
+        cp[i].requestedCultures = next;
+        setProducts(cp);
+      }}
+    />
+  </div>
+</section>
 
-                  {/* Core details */}
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="SKU Number">
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        className="font-mono"
-                        value={prod.sku}
-                        onChange={(e) => updateProduct(i, { sku: e.target.value.replace(/[^0-9]/g, "") })}
-                        required
-                      />
-                    </Field>
-                    <Field label="Product Name">
-                      <Input
-                        value={prod.productName}
-                        onChange={(e) => updateProduct(i, { productName: e.target.value })}
-                        required
-                      />
-                    </Field>
+{/* Core details */}
+<div className="grid gap-3 md:grid-cols-2">
+  {/* SKU */}
+  <section className="space-y-2">
+    <div>
+      <h3 className="text-base font-semibold">
+        SKU Number <span className="text-red-600">*</span>
+      </h3>
+      <p className="text-xs text-gray-600">Enter the numeric base SKU (digits only).</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3 focus-within:border-gray-300 focus-within:ring-2 focus-within:ring-black/10">
+      <Input
+        type="text" // avoids browser steppers; still numeric UX
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={prod.sku}
+        onChange={(e) => updateProduct(i, { sku: e.target.value.replace(/\D/g, "") })}
+        className="font-mono border-0 bg-transparent shadow-none focus:ring-0 p-0"
+        placeholder="e.g., 60113"
+        required
+      />
+    </div>
+    
+  </section>
+                     {/* Product Name */}
+  <section className="space-y-2">
+    <div>
+      <h3 className="text-base font-semibold">Product Name</h3>
+      <p className="text-xs text-gray-600">Shown as the PDP title for en-US; translations can override per culture.</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3 focus-within:border-gray-300 focus-within:ring-2 focus-within:ring-black/10">
+      <Input
+        value={prod.productName}
+        onChange={(e) => updateProduct(i, { productName: e.target.value })}
+        className="border-0 bg-transparent shadow-none focus:ring-0 p-0"
+        placeholder="e.g., Renew® Intensive Skin Therapy"
+        required
+      />
+    </div>
+  </section>
+</div>
 
-                  </div>
+{/* Localized & Translated Content */}
+<section className="space-y-2">
+  <div className="flex items-center justify-between">
+    <div>
+      <h3 className="text-base font-semibold">Localized & Pre-Translated Content</h3>
+      <p className="text-xs text-gray-600">
+        Add market-specific wording or translations. Leave fields blank to fall back to the US content.</p>
+        <p className="text-xs text-gray-600">Great for English spelling variants (colour/flavour/honour) in en-CA, en-GB, en-IE, etc.</p>
+    </div>
 
-                  <Field label="Stamp">
-                    <select
-                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
-                      value={prod.stamp ?? ""}   // keep "" for “none”
-                      onChange={(e) => updateProduct(i, { stamp: e.target.value || null })}
-                    >
-                      {/* optional empty choice */}
-                      <option value="">—</option>
-                      {STAMP_OPTIONS.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  </Field>
+    {/* Enable/disable toggle */}
+    <label className="inline-flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="h-4 w-4"
+        checked={!!prod.includeTranslations}
+        onChange={(e) => {
+          const checked = e.target.checked;
+          const cp = [...products];
+          cp[i].includeTranslations = checked;
+          if (!checked) cp[i].cultures = []; // clear stale overrides when off
+          setProducts(cp);
+        }}
+      />
+      <span>Enable</span>
+    </label>
+  </div>
 
-                  <Field label="Off-Sale Message">
-                    <select
-                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-1"
-                      value={prod.offSaleMessage ?? ""}  // keep "" for “none”
-                      onChange={(e) => updateProduct(i, { offSaleMessage: e.target.value || null })}
-                    >
-                      <option value="">—</option>
-                      {OFFSALE_OPTIONS.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  </Field>
+  {/* Presets + add controls */}
+  <div className={`rounded-lg border border-gray-200 bg-white p-3 ${!prod.includeTranslations ? "opacity-50 pointer-events-none" : ""}`}>
+    <div className="flex flex-wrap items-center gap-2 mb-3">
+      <span className="text-xs text-gray-600 mr-1">Quick add:</span>
+      {["en-CA", "en-GB", "en-IE", "fr-CA", "es-US"].map((cc) => (
+        <button
+          key={cc}
+          type="button"
+          className="text-xs rounded border border-gray-300 px-2 py-1 hover:bg-gray-50"
+          onClick={() => {
+            const cp = [...products];
+            const exists = cp[i].cultures?.some(c => (c.cultureCode || "").toLowerCase() === cc.toLowerCase());
+            if (!exists) {
+              cp[i].cultures.push({
+                cultureCode: cc,
+                // prefill from US so user edits small differences
+                translatedName:  prod.productName || "",
+                translatedShort: prod.shortDescription || "",
+                translatedLong:  prod.longDescription || "",
+              });
+              setProducts(cp);
+            }
+          }}
+        >
+          + {cc}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="text-xs rounded border border-gray-300 px-2 py-1 hover:bg-gray-50"
+        onClick={() => {
+          const cp = [...products];
+          cp[i].cultures.push({
+            cultureCode: "",
+            translatedName: "",
+            translatedShort: "",
+            translatedLong: "",
+          });
+          setProducts(cp);
+        }}
+      >
+        + Custom culture
+      </button>
+    </div>
+
+    {/* Rows */}
+    {prod.includeTranslations ? (
+      prod.cultures.length ? (
+        <div className="space-y-3">
+          {prod.cultures.map((c, ci) => (
+            <div key={ci} className="rounded-lg border border-gray-200 p-3">
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input
+                  placeholder="cultureCode (e.g., en-CA)"
+                  value={c.cultureCode ?? ""}
+                  onChange={(e) => {
+                    // normalize like en-ca -> en-CA
+                    const raw = e.target.value.trim();
+                    const norm = raw.replace(/^([a-zA-Z]{2})([-_])?([a-zA-Z]{2})?$/, (_m, lang, _sep, region) =>
+                      region ? `${String(lang).toLowerCase()}-${String(region).toUpperCase()}` : String(lang).toLowerCase()
+                    );
+                    const cp = [...products];
+                    cp[i].cultures[ci].cultureCode = norm;
+                    setProducts(cp);
+                  }}
+                  className="border border-gray-300 rounded px-3 py-2"
+                />
+                <Input
+                  placeholder="Localized Product Name"
+                  value={c.translatedName ?? ""}
+                  onChange={(e) => {
+                    const cp = [...products];
+                    cp[i].cultures[ci].translatedName = e.target.value;
+                    setProducts(cp);
+                  }}
+                  className="border border-gray-300 rounded px-3 py-2"
+                />
+                <Input
+                  placeholder="Localized Short Description"
+                  value={c.translatedShort ?? ""}
+                  onChange={(e) => {
+                    const cp = [...products];
+                    cp[i].cultures[ci].translatedShort = e.target.value;
+                    setProducts(cp);
+                  }}
+                  className="border border-gray-300 rounded px-3 py-2 md:col-span-2"
+                />
+                <Textarea
+                  placeholder="Localized Long Description (rich text allowed later)"
+                  rows={3}
+                  value={c.translatedLong ?? ""}
+                  onChange={(e) => {
+                    const cp = [...products];
+                    cp[i].cultures[ci].translatedLong = e.target.value;
+                    setProducts(cp);
+                  }}
+                  className="border border-gray-300 rounded px-3 py-2 md:col-span-2"
+                />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-[11px] text-gray-500">
+                  Leave any field blank to fall back to US content for this culture.
+                </p>
+                <div className="space-x-3">
+                  {/* Prefill from US content if user wants to reset */}
+                  <button
+                    type="button"
+                    className="text-sm underline text-gray-700"
+                    onClick={() => {
+                      const cp = [...products];
+                      cp[i].cultures[ci] = {
+                        ...cp[i].cultures[ci],
+                        translatedName:  prod.productName || "",
+                        translatedShort: prod.shortDescription || "",
+                        translatedLong:  prod.longDescription || "",
+                      };
+                      setProducts(cp);
+                    }}
+                  >
+                    Copy from US
+                  </button>
+                  <button
+                    type="button"
+                    className="text-sm underline text-red-600"
+                    onClick={() => {
+                      const cp = [...products];
+                      cp[i].cultures = cp[i].cultures.filter((_, idx) => idx !== ci);
+                      setProducts(cp);
+                    }}
+                  >
+                    Remove culture
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">No culture rows yet. Use the quick add buttons above or add a custom code.</p>
+      )
+    ) : (
+      <p className="text-sm text-gray-500">Turn on “Enable” to add localized fields or spelling variants per market.</p>
+    )}
+  </div>
+</section>
 
 
-                  {/* Descriptions */}
-                  <Field label="Short Description">
-                    <Input
-                      value={prod.shortDescription ?? ""}
-                      onChange={(e) => updateProduct(i, { shortDescription: e.target.value })}
-                    />
-                  </Field>
+                {/* Stamp */}
+<section className="space-y-2">
+  <div>
+    <h3 className="text-base font-semibold">Stamp</h3>
+    <p className="text-xs text-gray-600">Optional badge shown near the title (e.g., New, Limited Time).</p>
+  </div>
+  <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <select
+      className="w-full border-0 bg-transparent px-0 py-0 focus:ring-0 outline-none"
+      value={prod.stamp ?? ""}
+      onChange={(e) => updateProduct(i, { stamp: e.target.value || null })}
+    >
+      <option value="">—</option>
+      {STAMP_OPTIONS.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  </div>
+</section>
 
-                  <Field label="Long Description">
-                    <RichTextEditorQuill
-                      value={prod.longDescription ?? ""}
-                      onChange={(html) => updateProduct(i, { longDescription: html })}
-                    />
-                  </Field>
+{/* Off-Sale Message */}
+<section className="space-y-2">
+  <div>
+    <h3 className="text-base font-semibold">Off-Sale Message</h3>
+    <p className="text-xs text-gray-600">Message if product is not available (e.g., Sold Out, Temporarily Unavailable).</p>
+  </div>
+  <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <select
+      className="w-full border-0 bg-transparent px-0 py-0 focus:ring-0 outline-none"
+      value={prod.offSaleMessage ?? ""}
+      onChange={(e) => updateProduct(i, { offSaleMessage: e.target.value || null })}
+    >
+      <option value="">—</option>
+      {OFFSALE_OPTIONS.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  </div>
+</section>
 
+{/* Short Description */}
+<section className="space-y-2">
+  <div>
+    <h3 className="text-base font-semibold">Short Description</h3>
+    <p className="text-xs text-gray-600">Paragraph that shows above the long description.</p>
+  </div>
+  <div className="rounded-lg border border-gray-200 bg-white p-3 focus-within:border-gray-300 focus-within:ring-2 focus-within:ring-black/10">
+    <Input
+      value={prod.shortDescription ?? ""}
+      onChange={(e) => updateProduct(i, { shortDescription: e.target.value })}
+      className="border-0 bg-transparent shadow-none focus:ring-0 p-0"
+      placeholder="Restore, replenish, and rejuvenate your skin’s moisture"
+    />
+  </div>
+</section>
 
+{/* Long Description */}
+<section className="space-y-2">
+  <div>
+    <h3 className="text-base font-semibold">Long Description</h3>
+    <p className="text-xs text-gray-600">Rich text body (bold, italic, lists, links allowed).</p>
+  </div>
+  <div className="rounded-lg border border-gray-200 bg-white p-2">
+    <RichTextEditorQuill
+      value={prod.longDescription ?? ""}
+      onChange={(html) => updateProduct(i, { longDescription: html })}
+    />
+  </div>
+</section>
 
-                  {/* If PDP requested */}
-                  <div className="mt-4 space-y-2">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={prod.isPdpRequested ?? false}
-                        onChange={(e) => {
-                          const cp = [...products];
-                          cp[i].isPdpRequested = e.target.checked;
-                          // reset work request number if unchecked
-                          if (!e.target.checked) cp[i].pdpWorkRequest = "";
-                          setProducts(cp);
-                        }}
-                      />
-                      <span className="text-sm">Is a product detail page requested for this SKU?</span>
-                    </label>
+{/* PDP Requested */}
+<section className="space-y-2">
+  <div>
+    <h3 className="text-base font-semibold">Product Detail Page (PDP)</h3>
+    <p className="text-xs text-gray-600">Flag if a new PDP is needed for this SKU and include the Work Request #.</p>
+  </div>
+  <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+    <label className="inline-flex items-center gap-2">
+      <input
+        type="checkbox"
+        className="h-4 w-4"
+        checked={prod.isPdpRequested ?? false}
+        onChange={(e) => {
+          const cp = [...products];
+          cp[i].isPdpRequested = e.target.checked;
+          if (!e.target.checked) cp[i].pdpWorkRequest = "";
+          setProducts(cp);
+        }}
+      />
+      <span className="text-sm">A new PDP is requested for this SKU</span>
+    </label>
 
-                    {prod.isPdpRequested && (
-                      <label className="block">
-                        <span className="text-sm">PDP Work Request Number</span>
-                        <input
-                          type="text"
-                          className="mt-1 w-full rounded border p-2"
-                          value={prod.pdpWorkRequest ?? ""}
-                          onChange={(e) => {
-                            const cp = [...products];
-                            cp[i].pdpWorkRequest = e.target.value;
-                            setProducts(cp);
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
+    {prod.isPdpRequested && (
+      <div className="space-y-1">
+        <span className="text-xs text-gray-600">PDP Work Request Number</span>
+        <div className="rounded-lg border border-gray-200 bg-white p-2">
+          <input
+            type="text"
+            className="w-full border-0 bg-transparent p-0 focus:ring-0 outline-none"
+            value={prod.pdpWorkRequest ?? ""}
+            onChange={(e) => {
+              const cp = [...products];
+              cp[i].pdpWorkRequest = e.target.value;
+              setProducts(cp);
+            }}
+            placeholder="WR-12345"
+          />
+        </div>
+      </div>
+    )}
+  </div>
+</section>
 
 
                   {/* Dates (per market) */}
@@ -1104,122 +1337,7 @@ export default function Page() {
                     </div>
                   </section>
 
-
-                  {/* Cultures */}
-                  {/* Translations */}
-                  <section className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Translations</h4>
-                        <label className="mt-1 inline-flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={!!prod.includeTranslations}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              const cp = [...products];
-                              cp[i].includeTranslations = checked;
-                              // If turned off, clear any culture rows so we don’t submit stale data
-                              if (!checked) cp[i].cultures = [];
-                              setProducts(cp);
-                            }}
-                          />
-                          <span>Include Translations</span>
-                        </label>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`text-sm underline ${!prod.includeTranslations ? "opacity-40 cursor-not-allowed" : ""}`}
-                        onClick={() => {
-                          if (!prod.includeTranslations) return;
-                          const cp = [...products];
-                          cp[i].cultures.push({
-                            cultureCode: "",
-                            translatedName: "",
-                            translatedShort: "",
-                            translatedLong: "",
-                          });
-                          setProducts(cp);
-                        }}
-                        disabled={!prod.includeTranslations}
-                      >
-                        + Add culture
-                      </button>
-                    </div>
-
-                    {/* When translations are disabled, show a small hint */}
-                    {!prod.includeTranslations && (
-                      <p className="text-sm text-gray-500">
-
-                      </p>
-                    )}
-
-                    {/* Render culture rows only when enabled */}
-                    {prod.includeTranslations && (
-                      <>
-                        {prod.cultures.length ? (
-                          prod.cultures.map((c, ci) => (
-                            <div key={ci} className="grid gap-2 md:grid-cols-2 border rounded p-3">
-                              <Input
-                                placeholder="cultureCode (e.g., en-US)"
-                                value={c.cultureCode ?? ""}
-                                onChange={(e) => {
-                                  const cp = [...products];
-                                  cp[i].cultures[ci].cultureCode = e.target.value;
-                                  setProducts(cp);
-                                }}
-                              />
-                              <Input
-                                placeholder="Translated Name"
-                                value={c.translatedName ?? ""}
-                                onChange={(e) => {
-                                  const cp = [...products];
-                                  cp[i].cultures[ci].translatedName = e.target.value;
-                                  setProducts(cp);
-                                }}
-                              />
-                              <Input
-                                placeholder="Translated Short Description"
-                                value={c.translatedShort ?? ""}
-                                onChange={(e) => {
-                                  const cp = [...products];
-                                  cp[i].cultures[ci].translatedShort = e.target.value;
-                                  setProducts(cp);
-                                }}
-                              />
-                              <Textarea
-                                placeholder="Translated Long Description"
-                                rows={3}
-                                value={c.translatedLong ?? ""}
-                                onChange={(e) => {
-                                  const cp = [...products];
-                                  cp[i].cultures[ci].translatedLong = e.target.value;
-                                  setProducts(cp);
-                                }}
-                              />
-                              <div className="md:col-span-2 text-right">
-                                <button
-                                  type="button"
-                                  className="text-sm text-red-600 underline"
-                                  onClick={() => {
-                                    const cp = [...products];
-                                    cp[i].cultures = cp[i].cultures.filter((_, idx) => idx !== ci);
-                                    setProducts(cp);
-                                  }}
-                                >
-                                  Remove culture
-                                </button>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500">No culture rows yet.</p>
-                        )}
-                      </>
-                    )}
-                  </section>
+                 
                 </div>
               </Card>
             ))}

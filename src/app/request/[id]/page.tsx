@@ -5,6 +5,8 @@ import ManageRequestActions from "@/lib/components/ManageRequestActions";
 import { ActionBar, IconButton } from "@/lib/components/IconButton";
 import SmartlingIconTrigger from "@/lib/components/SmartlingIconTrigger";
 import { Plus, History, Eye } from "lucide-react";
+import StatusCell from "@/lib/components/StatusCell";
+import type { SubmissionStatus } from "@prisma/client";
 import "../../globals.css";
 
 // tiny helper, server-safe
@@ -105,6 +107,9 @@ export default async function ManageRequest({
     submissionNote: string; // for display
     submissionTime: string; // for display
     submissionIdRaw: number; // for URLs (same as product.submissionId)
+
+    status: SubmissionStatus;
+    statusNote: string | null;
   };
 
   type MarketRow = Product["markets"][number];
@@ -210,6 +215,9 @@ export default async function ManageRequest({
         submissionNote: s.note ?? "—",
         submissionTime: new Date(s.createdAt).toLocaleString(),
         submissionIdRaw: p.submissionId,
+
+        status: p.status as SubmissionStatus,
+        statusNote: p.statusNote ?? null,
       };
     })
   );
@@ -300,7 +308,7 @@ export default async function ManageRequest({
             No SKUs yet. Use “Add SKU to this Request”.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
                 <tr className="text-left">
@@ -313,6 +321,8 @@ export default async function ManageRequest({
                   <th className="p-3">On Sale</th>
                   <th className="p-3">Off Sale</th>
                   <th className="p-3">Version</th>
+                  <th className="p-3">Status</th> 
+                  <th className="p-3">Download</th>
                   <th className="p-3">Actions</th>
                 </tr>
               </thead>
@@ -345,6 +355,30 @@ export default async function ManageRequest({
                         v{r.version}
                       </span>
                     </td>
+                    <td className="p-3 relative">
+                      <StatusCell
+                        submissionId={r.submissionId}
+                        productId={r.id}
+                        value={r.status}
+                        note={r.statusNote ?? undefined}
+                      />
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`/api/submissions/${r.submissionIdRaw}/products/${r.id}/export?format=docx`}
+                        className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                      >
+                        DOCX
+                      </a>
+                      <a
+                        href={`/api/submissions/${r.submissionIdRaw}/products/${r.id}/export?format=pdf`}
+                        className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                      >
+                        PDF
+                      </a>
+                    </div>
+                  </td>
                     <td className="p-3 text-center">
                       <ActionBar>
                         <IconButton
