@@ -71,6 +71,16 @@ model Submission {
   @@index([requestId])
 }
 
+// --- new enum ---
+enum SubmissionStatus {
+  NEW
+  IN_PROGRESS
+  READY
+  BLOCKED
+  COMPLETE
+}
+
+
 /**
  * ---------------------------------
  * Individual SKU row in a submission
@@ -102,6 +112,11 @@ model SubmissionProduct {
   includeTranslations   Boolean @default(false)
   requestedCulturesJson Json?
 
+    // status
+  status           SubmissionStatus @default(NEW)
+  statusNote       String?
+  statusChangedAt  DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -118,6 +133,8 @@ model SubmissionProduct {
   @@unique([submissionId, sku, version])
   @@index([submissionId])
   @@index([sku])
+  @@index([status])         
+  @@index([statusChangedAt])
 }
 
 enum Market {
