@@ -1,35 +1,40 @@
 "use client";
 
 import * as React from "react";
-
-type SkuRow = {
-  id: number;                // used when POSTing productId
-  [key: string]: unknown;    // remaining fields are dynamic
-};
-
 type SelectedState = Record<string, boolean>;
 type RegionsState = { US: boolean; CA: boolean; EU: boolean };
 
 interface SubmitToSmartlingPopupProps {
-  sku: SkuRow;
-  /** Optional icon/text trigger renderer. Calls `open()` to show the dialog. */
-  renderTrigger?: (open: () => void) => React.ReactNode;
+  sku: number;
+  skuId?: number;
+  submissionId?: number;
+  onClose: () => void;
   /** Optional callback after successful submit (receives server JSON) */
   onSuccess?: (result: any) => void;
-  /** Start open (mostly for testing) */
-  defaultOpen?: boolean;
 }
 
 export default function SubmitToSmartlingPopup({
   sku,
-  renderTrigger,
+  skuId,
+  submissionId,
+  onClose,
   onSuccess,
-  defaultOpen = false,
 }: SubmitToSmartlingPopupProps) {
-  const [open, setOpen] = React.useState(defaultOpen);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [authorizeJobs, setAuthorizeJobs] = React.useState(false);
   const [jobTitle, setJobTitle] = React.useState("");
+  const [skuData, setSkuData] = React.useState<Record<string, any> | null>(
+    null
+  );
+
+  React.useEffect(() => {
+    if (sku) {
+      fetch(`/api/submissions/${submissionId}/products/${skuId}`)
+        .then((res) => res.json())
+        .then((data) => setSkuData(data))
+        .catch(console.error);
+    }
+  }, [sku]);
 
   // Region + creds state
   const [selectedRegions, setSelectedRegions] = React.useState<RegionsState>({
@@ -76,28 +81,23 @@ export default function SubmitToSmartlingPopup({
   }, []);
 
   // Exclude these fields from the selectable list
-  const excluded = React.useMemo(
+  const included = React.useMemo(
     () =>
       new Set([
-        "submissionTime",
-        "submissionIdRaw",
-        "submissionNote",
-        "submissionId",
-        "onSaleDate",
-        "offSaleDate",
-        "uomUS",
-        "uomCA",
-        "savingsUS",
-        "savingsCA",
-        "isCurrent",
+        "productName",
+        "shortDescription",
+        "longDescription"
       ]),
     []
   );
 
   // Compute display entries (stable) and selected map that resets when SKU changes
   const displayEntries = React.useMemo(
-    () => Object.entries(sku).filter(([key]) => !excluded.has(key)),
-    [sku, excluded]
+    () =>
+      skuData
+        ? Object.entries(skuData).filter(([key]) => included.has(key))
+        : [],
+    [skuData, included]
   );
 
   const [selected, setSelected] = React.useState<SelectedState>({});
@@ -117,13 +117,12 @@ export default function SubmitToSmartlingPopup({
 
   // Esc key to close
   React.useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, []);
 
   const handleSubmit = async () => {
     setSubmitError(null);
@@ -137,8 +136,10 @@ export default function SubmitToSmartlingPopup({
     }
 
     // Validate credentials for all selected regions
-    const missingUS = selectedRegions.US && (!userIdUS || !userKeyUS || !projectIdUS);
-    const missingCA = selectedRegions.CA && (!userIdCA || !userKeyCA || !projectIdCA);
+    const missingUS =
+      selectedRegions.US && (!userIdUS || !userKeyUS || !projectIdUS);
+    const missingCA =
+      selectedRegions.CA && (!userIdCA || !userKeyCA || !projectIdCA);
     const missingEU =
       selectedRegions.EU &&
       (!userIdEU || !userKeyEU || !projectIdEU || targetLocalesEU.length === 0);
@@ -176,7 +177,7 @@ export default function SubmitToSmartlingPopup({
           projectIdEU,
           targetLocalesEU,
           authorizeJobs,
-          productId: sku.id,
+          productId: skuId,
         }),
       });
 
@@ -185,9 +186,10 @@ export default function SubmitToSmartlingPopup({
 
       onSuccess?.(result);
       alert(
-        "Smartling jobs created and strings added successfully! " + JSON.stringify(result)
+        "Smartling jobs created and strings added successfully! " +
+          JSON.stringify(result)
       );
-      setOpen(false);
+      onClose();
     } catch (err) {
       alert("Smartling API error: " + (err as Error).message);
     } finally {
@@ -207,34 +209,26 @@ export default function SubmitToSmartlingPopup({
       localStorage.setItem("smartlingUserIdEU", userIdEU);
       localStorage.setItem("smartlingUserKeyEU", userKeyEU);
       localStorage.setItem("smartlingProjectIdEU", projectIdEU);
-      localStorage.setItem("smartlingTargetLocalesEU", JSON.stringify(targetLocalesEU));
+      localStorage.setItem(
+        "smartlingTargetLocalesEU",
+        JSON.stringify(targetLocalesEU)
+      );
     }
     setShowCredsPrompt(false);
   };
 
-  // Default text trigger (kept for backward compatibility)
-  const defaultTrigger = (
-    <button
-      className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50 cursor-pointer"
-      onClick={() => setOpen(true)}
-      type="button"
-    >
-      Submit translation to Smartling
-    </button>
-  );
-
   return (
     <>
-      {renderTrigger ? renderTrigger(() => setOpen(true)) : defaultTrigger}
-
-      {!open ? null : showCredsPrompt ? (
+      {showCredsPrompt ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
           aria-modal="true"
           role="dialog"
         >
           <div className="bg-white rounded-xl shadow-lg p-8 min-w-[320px] relative">
-            <h3 className="text-lg font-semibold mb-4">Enter Smartling Credentials</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Enter Smartling Credentials
+            </h3>
             <p className="mb-4 text-xs text-gray-600">
               Need help?&nbsp;
               <a
@@ -357,7 +351,9 @@ export default function SubmitToSmartlingPopup({
                       checked={targetLocalesEU.includes(loc)}
                       onChange={(e) =>
                         setTargetLocalesEU((prev) =>
-                          e.target.checked ? [...prev, loc] : prev.filter((l) => l !== loc)
+                          e.target.checked
+                            ? [...prev, loc]
+                            : prev.filter((l) => l !== loc)
                         )
                       }
                     />
@@ -378,7 +374,7 @@ export default function SubmitToSmartlingPopup({
                 className="flex-1 bg-gray-200 text-gray-800 rounded px-4 py-2 font-medium hover:bg-gray-300 transition"
                 onClick={() => {
                   setShowCredsPrompt(false);
-                  setOpen(false);
+                  onClose();
                 }}
               >
                 Cancel
@@ -395,7 +391,7 @@ export default function SubmitToSmartlingPopup({
           <div className="bg-white rounded-xl shadow-lg p-8 min-w-[320px] relative">
             <button
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-700"
-              onClick={() => setOpen(false)}
+              onClick={() => onClose()}
               aria-label="Close"
             >
               <svg
@@ -434,7 +430,10 @@ export default function SubmitToSmartlingPopup({
                     type="checkbox"
                     checked={selectedRegions.US}
                     onChange={(e) =>
-                      setSelectedRegions((r) => ({ ...r, US: e.target.checked }))
+                      setSelectedRegions((r) => ({
+                        ...r,
+                        US: e.target.checked,
+                      }))
                     }
                   />
                   US (enUS → esUS)
@@ -444,7 +443,10 @@ export default function SubmitToSmartlingPopup({
                     type="checkbox"
                     checked={selectedRegions.CA}
                     onChange={(e) =>
-                      setSelectedRegions((r) => ({ ...r, CA: e.target.checked }))
+                      setSelectedRegions((r) => ({
+                        ...r,
+                        CA: e.target.checked,
+                      }))
                     }
                   />
                   CA (enCA → frCA)
@@ -454,7 +456,10 @@ export default function SubmitToSmartlingPopup({
                     type="checkbox"
                     checked={selectedRegions.EU}
                     onChange={(e) =>
-                      setSelectedRegions((r) => ({ ...r, EU: e.target.checked }))
+                      setSelectedRegions((r) => ({
+                        ...r,
+                        EU: e.target.checked,
+                      }))
                     }
                   />
                   EU (enIE → nlNL, deDE, ltLT, plPL)
@@ -468,7 +473,10 @@ export default function SubmitToSmartlingPopup({
                   </label>
                   <div className="flex flex-col gap-1">
                     {["nl-NL", "de-DE", "lt-LT", "pl-PL"].map((loc) => (
-                      <label key={loc} className="inline-flex items-center gap-2">
+                      <label
+                        key={loc}
+                        className="inline-flex items-center gap-2"
+                      >
                         <input
                           type="checkbox"
                           checked={targetLocalesEU.includes(loc)}
@@ -504,7 +512,14 @@ export default function SubmitToSmartlingPopup({
 
               <table className="min-w-full text-xs">
                 <tbody>
-                  {displayEntries.map(([key, value]) => (
+                  {!skuData ? (
+                    <tr>
+                      <td colSpan={2} className="text-center py-4">
+                        Loading SKU data...
+                      </td>
+                    </tr>
+                  ) : (
+                    displayEntries.map(([key, value]) => (
                     <tr key={key}>
                       <td className="pr-2 py-1 align-top text-gray-700 whitespace-nowrap">
                         <label className="inline-flex items-center gap-2">
@@ -520,7 +535,7 @@ export default function SubmitToSmartlingPopup({
                         {String(value)}
                       </td>
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
@@ -572,7 +587,7 @@ export default function SubmitToSmartlingPopup({
               </button>
               <button
                 className="flex-1 bg-gray-200 text-gray-800 rounded px-4 py-2 font-medium hover:bg-gray-300 transition"
-                onClick={() => setOpen(false)}
+                onClick={() => onClose()}
               >
                 Cancel
               </button>

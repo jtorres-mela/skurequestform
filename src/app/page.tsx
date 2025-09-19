@@ -13,7 +13,6 @@ function sprintRange(sprint?: string) {
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + 1); // first day of next month
   return { start, end };
-  
 }
 
 const monthKeys = await prisma.request.findMany({
@@ -23,8 +22,14 @@ const monthKeys = await prisma.request.findMany({
 const sprintOptions = Array.from(
   new Set(
     monthKeys
-      .map(r => r.dueDate!)
-      .map(d => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`)
+      .map((r) => r.dueDate!)
+      .map(
+        (d) =>
+          `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(
+            2,
+            "0"
+          )}`
+      )
   )
 ).sort();
 
@@ -33,7 +38,9 @@ const requestInclude = {
   submissions: {
     orderBy: { createdAt: "desc" as const },
     include: {
-      products: { select: { id: true, sku: true, productName: true } },
+      products: {
+        select: { id: true, sku: true, productName: true, version: true },
+      },
     },
   },
   promoUploads: {
@@ -129,7 +136,11 @@ export default async function Dashboard(props: {
   });
 
   const rows: RequestRow[] = requests.map((r) => {
-    const allProducts = r.submissions.flatMap((s) => s.products);
+    const latestProducts = r.submissions.map((s) =>
+      s.products.reduce((latest, p) =>
+        !latest || p.version > latest.version ? p : latest
+      )
+    );
     const recent = r.promoUploads ?? [];
     const promoUploadCount = r._count?.promoUploads ?? 0;
     const promoRowCount = recent.reduce(
@@ -144,8 +155,8 @@ export default async function Dashboard(props: {
       requesterEmail: r.requesterEmail,
       dueDate: r.dueDate,
       createdAt: r.createdAt,
-      skuCount: allProducts.length,
-      sampleProducts: allProducts.slice(0, 5),
+      skuCount: latestProducts.length,
+      sampleProducts: latestProducts.slice(0, 5),
       promoUploadCount,
       promoRowCount,
       lastPromoAt,
@@ -168,8 +179,10 @@ export default async function Dashboard(props: {
       {/* Header Row */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold dark:text-gray-300">Dashboard</h1>
-          <p className="text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold dark:text-white">
+            Dashboard
+          </h1>
+          <p className="text-sm text-gray-600 dark:text-gray-100">
             Search requests or start a new one.
           </p>
         </div>
@@ -181,15 +194,13 @@ export default async function Dashboard(props: {
         </Link>
       </div>
 
-      
-
       {/* Quick Filters */}
       <QuickFilterBar
-  emails={emailOptions}
-  selectedEmail={email}
-  selectedSprint={sprint}
-  sprints={sprintOptions}
-/>
+        emails={emailOptions}
+        selectedEmail={email}
+        selectedSprint={sprint}
+        sprints={sprintOptions}
+      />
 
       {/* Search Input */}
       <Search placeholder="Search by requester, email, notes, SKU, or product name…" />

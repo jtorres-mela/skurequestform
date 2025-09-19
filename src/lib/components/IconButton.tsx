@@ -15,7 +15,7 @@ type Common = {
 };
 
 type AsLink = Common & {
-  href: Href;               // <— key change
+  href: Href; // <— key change
   onClick?: never;
   type?: never;
 };
@@ -36,7 +36,12 @@ export function IconButton(props: AsLink | AsButton) {
   if ("href" in props) {
     const p = props as AsLink;
     return (
-      <Link href={p.href} title={p.title} className={cn(base, p.className)} {...aria}>
+      <Link
+        href={p.href}
+        title={p.title}
+        className={cn(base, p.className)}
+        {...aria}
+      >
         {p.children}
       </Link>
     );

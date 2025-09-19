@@ -218,7 +218,9 @@ export default async function ManageRequest({
     <div className="mx-auto max-w-7xl p-6 space-y-6">
       {/* Header */}
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold dark:text-gray-200">Manage Request #{req.id}</h1>
+        <h1 className="text-2xl font-semibold dark:text-gray-200">
+          Manage Request #{req.id}
+        </h1>
         <ManageRequestActions requestId={req.id} />
       </header>
 
@@ -345,25 +347,13 @@ export default async function ManageRequest({
                     </td>
                     <td className="p-3 text-center">
                       <ActionBar>
-                        <IconButton href={`/request/skuInfo/${r.id}`} title="View SKU information">
-                          <Eye className="h-4 w-4" />
-                        </IconButton>
                         <IconButton
-                          href={`/new?requestId=${req.id}&fromProductId=${r.id}&submissionId=${r.submissionIdRaw}`}
-                          title="Add revision"
+                          className="inline-flex h-9 w-24 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition focus:outline-none"
+                          href={`/request/skuInfo/${r.id}`}
+                          title="View SKU information"
                         >
-                          <Plus className="h-4 w-4" />
-                        </IconButton>
-
-                        <IconButton
-                          href={`/request/${
-                            req.id
-                          }/history?sku=${encodeURIComponent(
-                            r.sku
-                          )}&submissionId=${r.submissionIdRaw}`}
-                          title="View history"
-                        >
-                          <History className="h-4 w-4" />
+                          {/* <Eye className="h-4 w-4" /> */}
+                          <p className="font-bold">View details</p>
                         </IconButton>
 
                         {/* ✔️ now safe: only serializable props cross the boundary */}
