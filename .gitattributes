@@ -1,2 +1,2 @@
-# Exclude the big preview CSS from language stats
-public/live.css linguist-generated=true
+# Exclude all static assets in /public from language stats
+public/** linguist-vendored=true
