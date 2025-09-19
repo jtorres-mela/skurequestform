@@ -1,2 +1,2 @@
 # Exclude the big preview CSS from language stats
-public/live.css linguist-detectable=false
+public/live.css linguist-generated=true
