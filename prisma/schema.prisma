@@ -13,7 +13,8 @@ generator client {
 enum RequestType {
   OPEN_STOCK
   INCREMENTAL_PROMO
-  COUPON_PROMO // keep: Request may represent a coupon form workflow
+  COUPON_PROMO
+  EMAIL_REQUEST
 }
 
 enum PromotionKind {
@@ -42,6 +43,8 @@ model Request {
 
   // NEW manual coupon forms
   coupons Coupon[] @relation("RequestCoupons")
+
+  emailRequest   EmailRequest?
 
   @@index([createdAt])
   @@index([type])
@@ -322,4 +325,59 @@ model CatalogIndex {
   updatedAt    DateTime  @updatedAt
 
   @@index([productTitle])
+}
+
+// ----------------------------
+// Email Request (one-to-one)
+// ----------------------------
+model EmailRequest {
+  id         Int      @id @default(autoincrement())
+  requestId  Int      @unique
+  emailName  String                // "Name of Email"
+  sendDate   DateTime?             // "Send Date" (store at noon UTC)
+  subject    String                // "Subject Line"
+  preheader  String?               // "Pre-header"
+  bodyCopy   String?               // "Body Copy" (plain text is fine to start)
+  deptBilled String?               // "Department Billed"
+  sendList   String?               // "Send List"
+  sendFrom   String?               // "Send From" (display name)
+
+  // Relations
+  request   Request            @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  markets   EmailRequestMarket[]
+  cultures  EmailRequestCulture[]
+  assets    EmailRequestAsset[]   // repeating Image Path / Link To rows
+
+  @@index([sendDate])
+}
+
+model EmailRequestMarket {
+  id             Int    @id @default(autoincrement())
+  emailRequestId Int
+  market         Market
+
+  emailRequest EmailRequest @relation(fields: [emailRequestId], references: [id], onDelete: Cascade)
+  @@unique([emailRequestId, market])
+  @@index([market])
+}
+
+model EmailRequestCulture {
+  id             Int    @id @default(autoincrement())
+  emailRequestId Int
+  cultureCode    String   // e.g., "en-US", "fr-CA", "es-US"
+
+  emailRequest EmailRequest @relation(fields: [emailRequestId], references: [id], onDelete: Cascade)
+  @@unique([emailRequestId, cultureCode])
+  @@index([cultureCode])
+}
+
+model EmailRequestAsset {
+  id             Int    @id @default(autoincrement())
+  emailRequestId Int
+  orderIndex     Int    @default(0)
+  imagePath      String?  // "Image Path"
+  linkTo         String?  // "Link To" (full URL)
+
+  emailRequest EmailRequest @relation(fields: [emailRequestId], references: [id], onDelete: Cascade)
+  @@index([emailRequestId])
 }

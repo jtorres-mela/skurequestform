@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Plus, Percent, Ticket, ChevronDown } from "lucide-react";
+import { Plus, Percent, Ticket, ChevronDown, Mail } from "lucide-react";
 import UploadPromoModal from "@/lib/components/UploadPromoModal";
 
 type Props = {
@@ -92,6 +92,19 @@ export default function ManageRequestActions({ requestId, showAddSku = true }: P
                 </span>
                 Add Coupon
               </Link>
+
+                        <Link
+            role="menuitem"
+            prefetch={false}
+            href={{ pathname: "/request/email/new", query: { fromRequestId: requestId } }}
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50"
+          >
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-gray-100">
+              <Mail className="h-4 w-4" />
+            </span>
+            New Email Request
+          </Link>
 
               <button
                 type="button"

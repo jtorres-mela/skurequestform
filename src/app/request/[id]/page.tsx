@@ -6,6 +6,7 @@ import { ActionBar, IconButton } from "@/lib/components/IconButton";
 import SmartlingIconTrigger from "@/lib/components/SmartlingIconTrigger";
 import { Plus, History, Eye } from "lucide-react";
 import StatusCell from "@/lib/components/StatusCell";
+import EditRequestDetails from "@/lib/components/EditRequestDetails";
 import type { SubmissionStatus } from "@prisma/client";
 import "../../globals.css";
 
@@ -27,6 +28,13 @@ function fmtDateTime(d?: string | Date | null) {
   return d ? new Date(d).toLocaleString() : "—";
 }
 
+function fmtDateYMD(d?: string | Date | null) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toISOString().slice(0, 10); // "YYYY-MM-DD"
+}
+
 export default async function ManageRequest({
   params,
 }: {
@@ -41,6 +49,13 @@ export default async function ManageRequest({
   const req = await prisma.request.findUnique({
     where: { id: requestId },
     include: {
+      emailRequest: {
+      include: {
+        markets: true,
+        cultures: true,
+        assets: { orderBy: { orderIndex: "asc" } },
+      },
+    },
       submissions: {
         orderBy: { createdAt: "desc" },
         include: {
@@ -68,8 +83,6 @@ export default async function ManageRequest({
           _count: { select: { lines: true } },
         },
       },
-
-      // ✅ new manual coupons relation
       coupons: {
         orderBy: { createdAt: "desc" },
         include: {
@@ -126,6 +139,18 @@ export default async function ManageRequest({
     PL: "PLN",
     LT: "EUR",
   };
+
+  // Values to seed the editor (all serializable)
+const initialDetails = {
+  requesterName:  req.requesterName ?? "",
+  requesterEmail: req.requesterEmail ?? "",
+  // editor expects YYYY-MM-DD or "", not a Date
+  dueDate:        req.dueDate ? new Date(req.dueDate).toISOString().slice(0, 10) : "",
+  adoId:          req.adoId ?? "",
+  userStory:      req.userStory ?? "",
+  notes:          req.notes ?? "",
+};
+
 
   function findMarket(p: Product, code: MarketCode) {
     return p.markets?.find((m) => m.market === code);
@@ -223,184 +248,305 @@ export default async function ManageRequest({
   );
 
   return (
-    <div className="mx-auto max-w-7xl p-6 space-y-6">
-      {/* Header */}
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold dark:text-gray-200">
-          Manage Request #{req.id}
-        </h1>
-        <ManageRequestActions requestId={req.id} />
-      </header>
+  <div className="mx-auto max-w-7xl p-6 space-y-6">
+    {/* Header */}
+    <header className="flex items-center justify-between">
+      <h1 className="text-2xl font-semibold dark:text-gray-200">
+        Manage Request #{req.id}
+      </h1>
+      <ManageRequestActions requestId={req.id} />
+    </header>
 
-      {/* Request details (full width) */}
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 font-medium">Request details</h2>
+    {/* Request details (full width) */}
+    <section className="rounded-xl bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-medium">Request details</h2>
+        <EditRequestDetails requestId={req.id} initial={initialDetails} />
+      </div>
 
-        {/* Responsive 2–3 column grid of fields */}
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+      {/* Responsive 2–3 column grid of fields */}
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+        <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+          <dt className="text-gray-500">Requester</dt>
+          <dd className="mt-0.5 text-gray-900">{req.requesterName || "—"}</dd>
+        </div>
+
+        <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+          <dt className="text-gray-500">Email</dt>
+          <dd className="mt-0.5">
+            {req.requesterEmail ? (
+              <a
+                href={`mailto:${req.requesterEmail}`}
+                className="text-blue-700 hover:underline"
+              >
+                {req.requesterEmail}
+              </a>
+            ) : (
+              <span className="text-gray-900">—</span>
+            )}
+          </dd>
+        </div>
+
+        <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+          <dt className="text-gray-500">Due</dt>
+          <dd className="mt-0.5 text-gray-900">{fmtDate(req.dueDate)}</dd>
+        </div>
+
+        <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+          <dt className="text-gray-500">Created</dt>
+          <dd className="mt-0.5 text-gray-900">{fmtDateTime(req.createdAt)}</dd>
+        </div>
+
+        {!!req.adoId && (
           <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-            <dt className="text-gray-500">Requester</dt>
-            <dd className="mt-0.5 text-gray-900">{req.requesterName || "—"}</dd>
+            <dt className="text-gray-500">ADO Work Req</dt>
+            <dd className="mt-0.5 text-gray-900">{req.adoId}</dd>
           </div>
-
-          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-            <dt className="text-gray-500">Email</dt>
-            <dd className="mt-0.5">
-              {req.requesterEmail ? (
-                <a
-                  href={`mailto:${req.requesterEmail}`}
-                  className="text-blue-700 hover:underline"
-                >
-                  {req.requesterEmail}
-                </a>
-              ) : (
-                <span className="text-gray-900">—</span>
-              )}
-            </dd>
-          </div>
-
-          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-            <dt className="text-gray-500">Due</dt>
-            <dd className="mt-0.5 text-gray-900">{fmtDate(req.dueDate)}</dd>
-          </div>
-
-          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-            <dt className="text-gray-500">Created</dt>
-            <dd className="mt-0.5 text-gray-900">
-              {fmtDateTime(req.createdAt)}
-            </dd>
-          </div>
-
-          {req.adoId && (
-            <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-              <dt className="text-gray-500">ADO Work Req</dt>
-              <dd className="mt-0.5 text-gray-900">{req.adoId}</dd>
-            </div>
-          )}
-
-          {req.userStory && (
-            <div className="rounded-lg shadow-sm bg-gray-50 p-3">
-              <dt className="text-gray-500">ADO User Story</dt>
-              <dd className="mt-0.5 text-gray-900">{req.userStory}</dd>
-            </div>
-          )}
-        </dl>
-      </section>
-
-      {/* Notes (full width, beneath details) */}
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-2 font-medium">Notes</h2>
-        {req.notes && req.notes.trim().length ? (
-          <p className="whitespace-pre-wrap text-sm text-gray-700">
-            {req.notes}
-          </p>
-        ) : (
-          <p className="text-sm text-gray-500">No notes added.</p>
         )}
-      </section>
 
-      {/* SKUs table */}
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 font-medium">SKUs in this Request</h2>
+        {!!req.userStory && (
+          <div className="rounded-lg shadow-sm bg-gray-50 p-3">
+            <dt className="text-gray-500">ADO User Story</dt>
+            <dd className="mt-0.5 text-gray-900">{req.userStory}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
 
-        {!rows.length ? (
-          <p className="text-sm text-gray-500">
-            No SKUs yet. Use “Add SKU to this Request”.
-          </p>
-        ) : (
-          <div className="overflow-x-auto overflow-y-visible">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left">
-                  <th className="p-3">SKU</th>
-                  <th className="p-3">Product</th>
-                  <th className="p-3">Quantity (US)</th>
-                  <th className="p-3">Quantity (CA)</th>
-                  <th className="p-3">Savings (US)</th>
-                  <th className="p-3">Savings (CA)</th>
-                  <th className="p-3">On Sale</th>
-                  <th className="p-3">Off Sale</th>
-                  <th className="p-3">Version</th>
-                  <th className="p-3">Status</th> 
-                  <th className="p-3">Download</th>
-                  <th className="p-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t align-top">
-                    <td className="p-3 font-mono">{r.sku}</td>
-                    <td className="p-3">
-                      <div className="font-medium">{r.productName}</div>
-                      <div className="text-xs text-gray-500">
-                        Submission #{r.submissionId} · {r.submissionTime}
-                        {r.submissionNote !== "—"
-                          ? ` · ${r.submissionNote}`
-                          : ""}
-                      </div>
-                    </td>
-                    <td className="p-3">{r.uomUS}</td>
-                    <td className="p-3">{r.uomCA}</td>
-                    <td className="p-3">{r.savingsUS}</td>
-                    <td className="p-3">{r.savingsCA}</td>
-                    <td className="p-3">{r.onSaleDate}</td>
-                    <td className="p-3">{r.offSaleDate}</td>
-                    <td className="p-3">
-                      <span
-                        title={`Version ${r.version}${
-                          r.isCurrent ? " (current)" : ""
-                        }`}
-                        className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                      >
-                        v{r.version}
-                      </span>
-                    </td>
-                    <td className="p-3 relative">
-                      <StatusCell
-                        submissionId={r.submissionId}
-                        productId={r.id}
-                        value={r.status}
-                        note={r.statusNote ?? undefined}
-                      />
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={`/api/submissions/${r.submissionIdRaw}/products/${r.id}/export?format=docx`}
-                        className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
-                      >
-                        DOCX
+    {/* Notes (full width, beneath details) */}
+    <section className="rounded-xl bg-white p-4 shadow-sm">
+      <h2 className="mb-2 font-medium">Notes</h2>
+      {req.notes && req.notes.trim().length ? (
+        <p className="whitespace-pre-wrap text-sm text-gray-700">{req.notes}</p>
+      ) : (
+        <p className="text-sm text-gray-500">No notes added.</p>
+      )}
+    </section>
+
+
+    {/* Email Request block (only for EMAIL_REQUEST) */}
+{req.type === "EMAIL_REQUEST" && req.emailRequest && (
+  <section className="rounded-xl bg-white p-4 shadow-sm space-y-3">
+    <div className="flex items-center justify-between">
+      <h2 className="font-medium">Email Request</h2>
+      {/* Optional: link or button to edit later */}
+      {/* <Link href={`/request/${req.id}/email/edit`} className="text-sm text-blue-700 hover:underline">Edit</Link> */}
+    </div>
+
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+      <div className="rounded-lg bg-gray-50 p-3">
+        <div className="text-gray-500">Name of Email</div>
+        <div className="mt-0.5 text-gray-900">{req.emailRequest.emailName}</div>
+      </div>
+
+      <div className="rounded-lg bg-gray-50 p-3">
+        <div className="text-gray-500">Send Date</div>
+        <div className="mt-0.5 text-gray-900">
+          {fmtDateYMD(req.emailRequest.sendDate)}
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-gray-50 p-3 sm:col-span-2 lg:col-span-1">
+        <div className="text-gray-500">Subject Line</div>
+        <div className="mt-0.5 text-gray-900">{req.emailRequest.subject}</div>
+      </div>
+
+      {req.emailRequest.preheader && (
+        <div className="rounded-lg bg-gray-50 p-3 sm:col-span-2 lg:col-span-1">
+          <div className="text-gray-500">Pre-header</div>
+          <div className="mt-0.5 text-gray-900">{req.emailRequest.preheader}</div>
+        </div>
+      )}
+
+      {req.emailRequest.bodyCopy && (
+        <div className="rounded-lg bg-gray-50 p-3 sm:col-span-2">
+          <div className="text-gray-500">Body Copy</div>
+          <pre className="mt-0.5 whitespace-pre-wrap text-gray-900">
+            {req.emailRequest.bodyCopy}
+          </pre>
+        </div>
+      )}
+    </div>
+
+    <div className="grid gap-3 sm:grid-cols-2">
+      {/* Countries / Markets */}
+      <div>
+        <div className="text-sm font-medium mb-1">Countries</div>
+        <div className="flex flex-wrap gap-2">
+          {req.emailRequest.markets.length
+            ? req.emailRequest.markets.map((m) => (
+                <span key={m.id} className="rounded-full bg-gray-50 px-2 py-0.5 text-xs">
+                  {m.market}
+                </span>
+              ))
+            : <span className="text-sm text-gray-500">—</span>}
+        </div>
+      </div>
+
+      {/* Languages / Cultures */}
+      <div>
+        <div className="text-sm font-medium mb-1">Languages</div>
+        <div className="flex flex-wrap gap-2">
+          {req.emailRequest.cultures.length
+            ? req.emailRequest.cultures.map((c) => (
+                <span key={c.id} className="rounded-full bg-gray-50 px-2 py-0.5 text-xs">
+                  {c.cultureCode}
+                </span>
+              ))
+            : <span className="text-sm text-gray-500">—</span>}
+        </div>
+      </div>
+    </div>
+
+    {/* Assets */}
+    <div className="mt-2">
+      <div className="text-sm font-medium mb-1">Assets</div>
+      {req.emailRequest.assets.length ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-xs">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                <th className="p-2">Image Path</th>
+                <th className="p-2">Link To</th>
+              </tr>
+            </thead>
+            <tbody>
+              {req.emailRequest.assets.map((a) => (
+                <tr key={a.id} className="border-t">
+                  <td className="p-2 font-mono">{a.imagePath || "—"}</td>
+                  <td className="p-2">
+                    {a.linkTo ? (
+                      <a className="text-blue-700 hover:underline break-all" href={a.linkTo}>
+                        {a.linkTo}
                       </a>
-                      <a
-                        href={`/api/submissions/${r.submissionIdRaw}/products/${r.id}/export?format=pdf`}
-                        className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
-                      >
-                        PDF
-                      </a>
-                    </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
-                    <td className="p-3 text-center">
-                      <ActionBar>
-                        <IconButton
-                          className="inline-flex h-9 w-24 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition focus:outline-none"
-                          href={`/request/skuInfo/${r.id}`}
-                          title="View SKU information"
-                        >
-                          {/* <Eye className="h-4 w-4" /> */}
-                          <p className="font-bold">View details</p>
-                        </IconButton>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">No assets added.</p>
+      )}
+    </div>
+  </section>
+)}
 
-                        {/* ✔️ now safe: only serializable props cross the boundary */}
-                        {/* <SmartlingIconTrigger sku={r} /> */}
-                      </ActionBar>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+{/* SKUs */}
+{req.type === "EMAIL_REQUEST" ? (
+  <section className="rounded-xl bg-white p-4 shadow-sm">
+    <h2 className="mb-2 font-medium">SKUs</h2>
+    <p className="text-sm text-gray-500">
+      Email Requests don’t include SKU submissions.
+    </p>
+  </section>
+) : (
+  <section className="rounded-xl bg-white p-4 shadow-sm">
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="font-medium">SKUs in this Request</h2>
+      <span className="text-xs text-gray-500">{rows.length} total</span>
+    </div>
+
+    {!rows.length ? (
+      <p className="text-sm text-gray-500">
+        No SKUs yet. Use “Add SKU to this Request”.
+      </p>
+    ) : (
+      <div className="overflow-x-auto overflow-y-visible">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr className="text-left">
+              <th className="p-3 w-[120px]">SKU</th>
+              <th className="p-3">Product</th>
+              <th className="p-3 w-[90px]">Version</th>
+              <th className="p-3 w-[140px]">Status</th>
+              <th className="p-3 w-[140px]">Download</th>
+              <th className="p-3 w-[140px]">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t align-top hover:bg-gray-50/60">
+                {/* SKU */}
+                <td className="p-3 font-mono text-gray-900 whitespace-nowrap">
+                  {r.sku}
+                </td>
+
+                {/* Product + meta */}
+                <td className="p-3">
+                  <div className="font-medium text-gray-900">{r.productName}</div>
+                  <div className="text-xs text-gray-500">
+                    Submission #{r.submissionId} · {r.submissionTime}
+                    {r.submissionNote !== "—" ? ` · ${r.submissionNote}` : ""}
+                  </div>
+                </td>
+
+                {/* Version */}
+                <td className="p-3">
+                  <span
+                    title={`Version ${r.version}${r.isCurrent ? " (current)" : ""}`}
+                    className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                  >
+                    v{r.version}
+                  </span>
+                </td>
+
+                {/* Status */}
+                <td className="p-3 relative">
+                  <StatusCell
+                    submissionId={r.submissionId}
+                    productId={r.id}
+                    value={r.status}
+                    note={r.statusNote ?? undefined}
+                  />
+                </td>
+
+                {/* Download */}
+                <td className="p-3 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/api/submissions/${r.submissionIdRaw}/products/${r.id}/export?format=docx`}
+                      className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                      aria-label={`Download DOCX for ${r.productName}`}
+                    >
+                      DOCX
+                    </a>
+                    <a
+                      href={`/api/submissions/${r.submissionIdRaw}/products/${r.id}/export?format=pdf`}
+                      className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                      aria-label={`Download PDF for ${r.productName}`}
+                    >
+                      PDF
+                    </a>
+                  </div>
+                </td>
+
+                {/* Actions */}
+                <td className="p-3 text-center">
+                  <ActionBar>
+                    <IconButton
+                      className="inline-flex h-9 w-24 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition focus:outline-none"
+                      href={`/request/skuInfo/${r.id}`}
+                      title="View SKU information"
+                    >
+                      <p className="font-bold">View details</p>
+                    </IconButton>
+                  </ActionBar>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+)}
+
+
+
 
       {/* Promotions (uploads + manual coupons) */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
