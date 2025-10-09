@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
+
+
+function getErrorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 // Noon-UTC encoder for date-only strings (prevents off-by-one)
 function dateAtNoonUTC(ymd?: string | null) {
   if (!ymd || !ymd.trim()) return null;
@@ -137,9 +149,10 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ id: created.id }, { status: 201 });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error("POST /api/requests error:", err);
     return NextResponse.json(
-      { error: err?.message ?? "Server error" },
+      { error: getErrorMessage(err) },
       { status: 500 }
     );
   }
